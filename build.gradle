@@ -15,6 +15,12 @@ repositories {
 dependencies {
     // Full Spigot 1.8.8 server jar: Bukkit API + NMS (v1_8_R3) + bundled Netty/Guava/Gson.
     compileOnly 'org.spigotmc:spigot:1.8.8-R0.1-SNAPSHOT'
+    testImplementation 'org.spigotmc:spigot:1.8.8-R0.1-SNAPSHOT'
+    testImplementation 'junit:junit:4.13.2'
+}
+
+test {
+    useJUnit()
 }
 
 // Builds with whatever JDK runs Gradle (17+ for Gradle 9) and targets Java 8, which the server runs on.

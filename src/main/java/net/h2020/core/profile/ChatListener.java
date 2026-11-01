@@ -39,9 +39,8 @@ public final class ChatListener implements Listener {
         String level = "";
         if (family == GameFamily.BEDWARS) level = HypixelFormat.bedwarsStar(d.bwStar) + " ";
         else if (family == GameFamily.SKYWARS) level = HypixelFormat.skywarsLevelColor(d.swLevel) + "[" + d.swLevel + "⋆] ";
-        String head = d.rank == Rank.NONE && d.customRankTitle == null
-                ? d.nameColor() + p.getName() + ChatColor.GRAY + ": "
-                : d.rankPrefix() + p.getName() + ChatColor.WHITE + ": ";
+        String head = d.displayPrefix() + p.getName()
+                + (d.rank == Rank.NONE && d.customRankTitle == null ? ChatColor.GRAY : ChatColor.WHITE) + ": ";
         e.setFormat((level + head).replace("%", "%%") + "%2$s");
         e.setMessage(ChatColor.stripColor(e.getMessage()));
         Iterator<Player> it = e.getRecipients().iterator();

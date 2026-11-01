@@ -18,6 +18,10 @@ commands:
     description: Assign an existing rank or custom title and optional Minecraft color to an online player
     usage: /rank <player> <rank|custom title> [color]
     permission: h2020.admin
+  title:
+    description: Set a separate colored prefix before a player's rank
+    usage: /title <player> <text> [color] | /title <player> clear
+    permission: h2020.admin
   bot:
     description: Bot tools (spawn, cheat profiles, list) - owned by bots module
     permission: h2020.admin

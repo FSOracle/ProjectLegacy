@@ -9,6 +9,7 @@ import net.h2020.core.command.AdminCommand;
 import net.h2020.core.command.LobbyCommand;
 import net.h2020.core.command.PlayCommand;
 import net.h2020.core.command.RankCommand;
+import net.h2020.core.command.TitleCommand;
 import net.h2020.core.gui.MenuListener;
 import net.h2020.core.lobby.LobbyBots;
 import net.h2020.core.lobby.LobbyManager;
@@ -87,6 +88,9 @@ public final class CoreModule implements Module {
         RankCommand rank = new RankCommand(core);
         PluginCommand rankCommand = plugin.getCommand("rank");
         if (rankCommand != null) { rankCommand.setExecutor(rank); rankCommand.setTabCompleter(rank); }
+        TitleCommand title = new TitleCommand(core);
+        PluginCommand titleCommand = plugin.getCommand("title");
+        if (titleCommand != null) { titleCommand.setExecutor(title); titleCommand.setTabCompleter(title); }
         PluginCommand play = plugin.getCommand("play");
         if (play != null) play.setTabCompleter(new PlayCommand(core));
 

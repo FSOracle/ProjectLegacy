@@ -37,6 +37,8 @@ public final class HelpMenu implements Listener {
             {"/h2020 cheaters 0", "Percent of queue bots that cheat (Watchdog bans them)"},
             {"/h2020 date today", "Scoreboard date: today's real date (or 2020, or MM/dd/yy)"},
             {"/h2020 rank ", "Set a rank: /h2020 rank <player> MVP_PLUS RED"},
+            {"/rank ", "Set a rank with optional colored brackets: /rank <player> &7[&bBuilder&7]"},
+            {"/title ", "Set a prefix before the rank: /title <player> Champion gold (clear to remove)"},
             {"/h2020 bots 15", "Number of idle bots in the lobby"},
     };
 

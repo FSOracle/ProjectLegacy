@@ -3,7 +3,7 @@ package net.h2020.core.command;
 import net.h2020.api.core.Rank;
 import net.h2020.core.Core;
 import net.h2020.core.CoreConfig;
-import net.h2020.core.profile.ProfileData;
+import net.h2020.core.profile.NameFormatting;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -15,12 +15,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /** /rank <player> <rank|custom title> [color]. */
 public final class RankCommand implements TabExecutor {
-    private static final int MAX_CUSTOM_TITLE_LENGTH = 11;
-    private static final Pattern CONTROL = Pattern.compile("[\\u0000-\\u001F\\u007F]");
     private final Core core;
 
     public RankCommand(Core core) { this.core = core; }
@@ -59,8 +56,7 @@ public final class RankCommand implements TabExecutor {
         Rank rank = CoreConfig.parseEnum(Rank.class, title);
         String customTitle = rank == null ? customTitle(title, color) : null;
         if (rank == null && customTitle == null) {
-            sender.sendMessage(ChatColor.RED + "Invalid title. Use 1-" + MAX_CUSTOM_TITLE_LENGTH
-                    + " visible characters and color codes only. Colored prefixes must fit the 16-character team limit.");
+            sender.sendMessage(ChatColor.RED + "Invalid rank. Use text with color codes and optional matching outer brackets.");
             return true;
         }
         if (rank != null) core.profiles.setRankColor(target, rank, color);
@@ -82,24 +78,12 @@ public final class RankCommand implements TabExecutor {
     }
 
     static String customTitle(String title, ChatColor color) {
-        if (title == null || title.trim().isEmpty() || CONTROL.matcher(title).find()
-                || title.indexOf('[') >= 0 || title.indexOf(']') >= 0 || title.indexOf('\u00a7') >= 0) return null;
-        for (int i = 0; i < title.length(); i++) {
-            if (title.charAt(i) != '&') continue;
-            if (i + 1 >= title.length()) return null;
-            ChatColor code = ChatColor.getByChar(Character.toLowerCase(title.charAt(++i)));
-            if (code == null || !code.isColor()) return null;
-        }
-        String translated = ChatColor.translateAlternateColorCodes('&', title);
-        String plain = ChatColor.stripColor(translated);
-        if (plain.trim().isEmpty() || plain.codePointCount(0, plain.length()) > MAX_CUSTOM_TITLE_LENGTH) return null;
-        ProfileData preview = new ProfileData(null, "");
-        preview.customRankTitle = translated;
-        preview.rankColor = color;
-        return preview.rankPrefix().length() <= 16 ? translated : null;
+        String translated = NameFormatting.text(title, true);
+        return translated == null ? null
+                : NameFormatting.bracketedRank(translated, color == null ? ChatColor.GRAY : color);
     }
 
-    private static String join(String[] args, int from, int to) {
+    static String join(String[] args, int from, int to) {
         StringBuilder value = new StringBuilder();
         for (int i = from; i < to; i++) {
             if (i > from) value.append(' ');

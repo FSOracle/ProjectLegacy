@@ -241,10 +241,10 @@ public final class LobbyManager implements LobbyHooks, Listener {
         String msg;
         if (d.rank == Rank.MVP_PLUS_PLUS) {
             msg = " " + ChatColor.AQUA + ">" + ChatColor.RED + ">" + ChatColor.GREEN + ">" + ChatColor.RESET + " "
-                    + d.rankPrefix() + p.getName() + ChatColor.GOLD + " joined the lobby! "
+                    + d.displayPrefix() + p.getName() + ChatColor.GOLD + " joined the lobby! "
                     + ChatColor.GREEN + "<" + ChatColor.RED + "<" + ChatColor.AQUA + "<";
         } else if (d.rank == Rank.MVP_PLUS) {
-            msg = d.rankPrefix() + p.getName() + ChatColor.GOLD + " joined the lobby!";
+            msg = d.displayPrefix() + p.getName() + ChatColor.GOLD + " joined the lobby!";
         } else {
             return;
         }

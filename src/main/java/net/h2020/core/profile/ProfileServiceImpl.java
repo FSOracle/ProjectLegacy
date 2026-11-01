@@ -123,6 +123,13 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
         fireChange(p);
     }
 
+    public void setTitle(Player p, String title, ChatColor color) {
+        ProfileData d = data(p);
+        d.title = title;
+        d.titleColor = color != null && color.isColor() ? color : null;
+        fireChange(p);
+    }
+
     @Override public int networkLevel(Player p) { return data(p).networkLevel; }
 
     @Override
@@ -136,21 +143,25 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
     @Override
     public String displayName(Player p) {
         ProfileData d = data(p);
-        return d.rankPrefix() + p.getName();
+        return d.displayPrefix() + p.getName();
     }
 
     /** Name tag prefix (rank prefix, max 16 chars) for lobbies. */
     public String nametagPrefix(Player p) {
         ProfileData d = data(p);
-        String pre = d.rankPrefix();
-        return pre.length() > 16 ? pre.substring(0, 16) : pre;
+        return NameFormatting.teamPrefix(d.displayPrefix(), d.nameColor());
     }
 
     private void fireChange(final Player p) {
-        final ChangeListener l = changeListener;
-        if (l == null) return;
-        if (Bukkit.isPrimaryThread()) l.profileChanged(p);
-        else Bukkit.getScheduler().runTask(plugin, new Runnable() { @Override public void run() { l.profileChanged(p); } });
+        if (Bukkit.isPrimaryThread()) refreshDisplay(p);
+        else Bukkit.getScheduler().runTask(plugin, new Runnable() { @Override public void run() { refreshDisplay(p); } });
+    }
+
+    private void refreshDisplay(Player p) {
+        if (!p.isOnline()) return;
+        p.setPlayerListName(displayName(p));
+        ChangeListener listener = changeListener;
+        if (listener != null) listener.profileChanged(p);
     }
 
     // ---- persistence ----
@@ -160,6 +171,7 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
         Player p = e.getPlayer();
         ProfileData d = data(p);
         d.name = p.getName();
+        p.setPlayerListName(displayName(p));
         if (config.opLocalPlayers && !p.isOp() && !isBotProfile(p) && p.getAddress() != null
                 && p.getAddress().getAddress().isLoopbackAddress()) {
             p.setOp(true);

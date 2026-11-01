@@ -21,6 +21,8 @@ public final class ProfileData {
     public volatile ChatColor plusColor = ChatColor.RED;
     public volatile ChatColor rankColor;
     public volatile String customRankTitle;
+    public volatile String title;
+    public volatile ChatColor titleColor;
     public volatile int networkLevel = 1;
     /** Progress 0..1 towards the next network level (XP bar in lobbies). */
     public volatile double levelProgress = 0;
@@ -44,6 +46,14 @@ public final class ProfileData {
         return ChatColor.getLastColors(prefix).equals(color.toString()) ? prefix : prefix + color;
     }
 
+    public String titleDisplay() {
+        return title == null ? "" : (titleColor == null ? ChatColor.GRAY : titleColor) + title;
+    }
+
+    public String displayPrefix() {
+        return (title == null ? "" : titleDisplay() + " ") + rankPrefix();
+    }
+
     public String rankName() {
         if (customRankTitle != null) return titlePrefix().trim();
         return rankColor == null ? HypixelFormat.rankName(rank, plusColor)
@@ -52,7 +62,10 @@ public final class ProfileData {
 
     private String titlePrefix() {
         ChatColor base = rankColor == null ? rank.color : rankColor;
-        if (customRankTitle != null) return base + "[" + customRankTitle + "] ";
+        if (customRankTitle != null) {
+            String formatted = NameFormatting.bracketedRank(customRankTitle, base);
+            if (formatted != null) return formatted + " ";
+        }
         return rankColor == null ? rank.prefix(plusColor)
                 : base + (rank.tag.isEmpty() ? "" : rank.tag + " ");
     }
@@ -134,6 +147,8 @@ public final class ProfileData {
         s.set("plus-color", plusColor.name());
         s.set("rank-color", rankColor == null ? null : rankColor.name());
         s.set("custom-rank-title", customRankTitle);
+        s.set("title", title);
+        s.set("title-color", titleColor == null ? null : titleColor.name());
         s.set("level", networkLevel);
         s.set("level-progress", levelProgress);
         s.set("achievement-points", achievementPoints);
@@ -169,6 +184,13 @@ public final class ProfileData {
         } catch (IllegalArgumentException ignored) {}
         customRankTitle = s.getString("custom-rank-title", null);
         if (customRankTitle != null && customRankTitle.trim().isEmpty()) customRankTitle = null;
+        title = s.getString("title", null);
+        if (title != null && ChatColor.stripColor(title).trim().isEmpty()) title = null;
+        titleColor = null;
+        try {
+            ChatColor color = ChatColor.valueOf(s.getString("title-color", ""));
+            if (color.isColor()) titleColor = color;
+        } catch (IllegalArgumentException ignored) {}
         networkLevel = s.getInt("level", networkLevel);
         levelProgress = s.getDouble("level-progress", levelProgress);
         achievementPoints = s.getInt("achievement-points", achievementPoints);
