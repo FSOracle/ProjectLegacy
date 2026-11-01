@@ -41,7 +41,7 @@ public final class ReportManager {
                 + "will be reviewed as soon as possible.");
         service.alerts().broadcast(ChatColor.RED + "[WD] " + ChatColor.GRAY + reporter.getName() + ChatColor.WHITE + " reported "
                 + ChatColor.GRAY + target.getName() + ChatColor.DARK_GRAY + " (" + (reason.isEmpty() ? "cheating" : reason) + ")"
-                + ChatColor.GOLD + " x" + d.reporters.size());
+                + ChatColor.GOLD + " x" + d.reporters.size() + ChatColor.GRAY + " (NCP VL boost unsupported; alerts tagged only)");
         service.log("REPORT", reporter.getName() + " -> " + target.getName() + " [" + category + "] " + reason);
     }
 

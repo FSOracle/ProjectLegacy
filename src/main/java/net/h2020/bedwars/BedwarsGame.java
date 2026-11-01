@@ -631,7 +631,7 @@ public final class BedwarsGame implements BedwarsView {
         lines.add(ChatColor.WHITE + "Mode: " + ChatColor.GREEN + type.displayName);
         lines.add(ChatColor.WHITE + "Version: " + ChatColor.GRAY + "v1.6");
         lines.add(blank(4));
-        lines.add(ChatColor.YELLOW + "www.hypixel.net");
+        lines.add(ChatColor.YELLOW + "hypixel.today");
         String title = ChatColor.YELLOW + "" + ChatColor.BOLD + "BED WARS";
         for (BwPlayer bp : players.values()) {
             try { sb.setSidebar(bp.player, title, lines); } catch (Throwable ignored) { }
@@ -699,14 +699,35 @@ public final class BedwarsGame implements BedwarsView {
         Collections.shuffle(list);
         if (teams.isEmpty()) return;
         int used = Math.min(teams.size(), Math.max(1, (int) Math.ceil(list.size() / (double) type.teamSize)));
+        // Parties first: every party (2..teamSize members here) gets one team with room for all of them.
+        List<BwPlayer> singles = list;
+        net.h2020.social.api.PartyService ps = type.teamSize > 1 ? H2020.find(net.h2020.social.api.PartyService.class) : null;
+        if (ps != null) {
+            singles = new ArrayList<>();
+            Map<List<UUID>, List<BwPlayer>> groups = new LinkedHashMap<>();
+            for (BwPlayer bp : list) {
+                List<UUID> m = ps.membersOf(bp.player.getUniqueId());
+                if (m.size() < 2 || m.size() > type.teamSize) { singles.add(bp); continue; }
+                List<BwPlayer> g = groups.get(m);
+                if (g == null) { g = new ArrayList<>(); groups.put(m, g); }
+                g.add(bp);
+            }
+            for (List<BwPlayer> g : groups.values()) {
+                BwTeam t = null;
+                if (g.size() > 1) for (BwTeam cand : teams) if (type.teamSize - cand.members.size() >= g.size()) { t = cand; break; }
+                if (t == null) { singles.addAll(g); continue; }
+                for (BwPlayer bp : g) { bp.team = t; t.members.add(bp.player); }
+            }
+        }
         // Spread across used teams evenly (round-robin keeps teams balanced when not full).
         int i = 0;
-        for (BwPlayer bp : list) {
+        for (BwPlayer bp : singles) {
             BwTeam t = null;
             for (int tries = 0; tries < used; tries++) {
                 BwTeam cand = teams.get((i + tries) % used);
                 if (cand.members.size() < type.teamSize) { t = cand; i = i + tries + 1; break; }
             }
+            if (t == null) for (BwTeam cand : teams) if (cand.members.size() < type.teamSize) { t = cand; break; }
             if (t == null) break;
             bp.team = t;
             t.members.add(bp.player);
@@ -1309,13 +1330,12 @@ public final class BedwarsGame implements BedwarsView {
                 lines.add(ChatColor.WHITE + "Beds Broken: " + ChatColor.GREEN + bp.bedsBroken);
                 lines.add(blank(4));
             }
-            lines.add(ChatColor.YELLOW + "www.hypixel.net");
+            lines.add(ChatColor.YELLOW + "hypixel.today");
             try {
                 sb.setSidebar(bp.player, title, lines);
-                sb.setTabHeaderFooter(bp.player, ChatColor.AQUA + "You are playing on " + ChatColor.YELLOW + ChatColor.BOLD + "MC.HYPIXEL.NET\n",
+                sb.setTabHeaderFooter(bp.player, ChatColor.AQUA + "You are playing on " + ChatColor.YELLOW + ChatColor.BOLD + "HYPIXEL.TODAY\n",
                         "\n" + ChatColor.AQUA + "Kills: " + ChatColor.YELLOW + bp.kills + ChatColor.AQUA + " Final Kills: "
-                                + ChatColor.YELLOW + bp.finalKills + ChatColor.AQUA + " Beds Broken: " + ChatColor.YELLOW + bp.bedsBroken
-                                + "\n\n" + ChatColor.GREEN + "Ranks, Boosters & MORE! " + ChatColor.RED + ChatColor.BOLD + "STORE.HYPIXEL.NET");
+                                + ChatColor.YELLOW + bp.finalKills + ChatColor.AQUA + " Beds Broken: " + ChatColor.YELLOW + bp.bedsBroken);
             } catch (Throwable ignored) { }
         }
     }

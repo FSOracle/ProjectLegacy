@@ -41,7 +41,7 @@ public final class LobbyPads {
         if (w == null) return null;
         YamlConfiguration y = yml();
         if (w.getName().equals(y.getString("world"))) return y;
-        for (String k : new String[]{"bedwars_lobby", "skywars_lobby"}) {
+        for (String k : new String[]{"bedwars_lobby", "skywars_lobby", "duels_lobby"}) {
             ConfigurationSection s = y.getConfigurationSection(k);
             if (s != null && w.getName().equals(s.getString("world"))) return s;
         }
@@ -52,7 +52,15 @@ public final class LobbyPads {
     public Location spawn(World w) { return loc(w, sectionFor(w), "spawn"); }
 
     /** NPC pad by key ("bedwars", "skywars" in the main lobby; a GameType id in a family lobby), or null. */
-    public Location pad(World w, String key) { return loc(w, sectionFor(w), key); }
+    public Location pad(World w, String key) {
+        Location configured = loc(w, sectionFor(w), key);
+        if (configured != null || w == null) return configured;
+        boolean duelHub = w.getName().equals("h2020_lobby_duels");
+        boolean mainNewNpc = w.getName().equals("h2020_lobby") && (key.equals("duels") || key.equals("pit"));
+        if (!duelHub && !mainNewNpc) return null;
+        double[] p = net.h2020.maps.gen.LobbyGenerator.npcPads(w.getName()).get(key);
+        return p == null ? null : new Location(w, p[0], p[1], p[2], (float) p[3], 0f);
+    }
 
     private static Location loc(World w, ConfigurationSection s, String key) {
         if (s == null) return null;

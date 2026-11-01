@@ -12,7 +12,7 @@ import java.util.List;
 
 /** Main lobby / Bed Wars lobby / SkyWars lobby sidebars (summer 2020 layouts). */
 public final class LobbySidebars {
-    private static final String WWW = ChatColor.YELLOW + "www.hypixel.net";
+    private static final String WWW = ChatColor.YELLOW + "hypixel.today";
     private final Core core;
 
     public LobbySidebars(Core core) { this.core = core; }

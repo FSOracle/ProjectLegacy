@@ -248,7 +248,7 @@ public final class SkywarsGame implements SkywarsView {
         UUID u = p.getUniqueId();
         if (players.contains(u)) return true;
         if (players.size() >= maxPlayers()) return false;
-        SkywarsTeam team = pickTeam();
+        SkywarsTeam team = pickTeam(p);
         if (team == null) return false;
 
         int slot = 0;
@@ -278,7 +278,15 @@ public final class SkywarsGame implements SkywarsView {
         return true;
     }
 
-    private SkywarsTeam pickTeam() {
+    private SkywarsTeam pickTeam(Player p) {
+        net.h2020.social.api.PartyService ps = type.teamSize > 1 ? H2020.find(net.h2020.social.api.PartyService.class) : null;
+        List<UUID> mates = ps == null ? Collections.<UUID>emptyList() : ps.membersOf(p.getUniqueId());
+        if (mates.size() > 1) { // party: join a mate's team, else start an empty one so the rest can follow
+            for (UUID m : mates) { SkywarsTeam t = teamOf.get(m); if (t != null && t.members.size() < type.teamSize) return t; }
+            List<SkywarsTeam> free = new ArrayList<>();
+            for (SkywarsTeam t : teams) if (t.members.isEmpty()) free.add(t);
+            if (!free.isEmpty()) return free.get(random.nextInt(free.size()));
+        }
         List<SkywarsTeam> partial = new ArrayList<>(), empty = new ArrayList<>();
         for (SkywarsTeam t : teams) {
             if (t.members.isEmpty()) empty.add(t);
@@ -903,7 +911,7 @@ public final class SkywarsGame implements SkywarsView {
     private void exemptMoving(Player p, long ms) {
         WatchdogService wd = H2020.find(WatchdogService.class);
         if (wd == null) return;
-        for (CheckType c : CheckType.values()) if (c.group == CheckType.Group.MOVING) wd.exempt(p, c, ms);
+        wd.exemptGroup(p, CheckType.Group.MOVING, ms);
     }
 
     // =========================================================================================================
@@ -1028,7 +1036,7 @@ public final class SkywarsGame implements SkywarsView {
                 l.add("Mode: " + mode);
             }
             l.add(blank(4));
-            l.add(ChatColor.YELLOW + "www.hypixel.net");
+            l.add(ChatColor.YELLOW + "hypixel.today");
             sb.setSidebar(p, title, l);
         }
     }

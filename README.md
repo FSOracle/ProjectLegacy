@@ -1,8 +1,10 @@
 # Hypixel 2020
 
-# This will not receive updates or fixes, and is deprecated for a proper version you can view at https://discord.gg/6n4JvYsbFH Developed by quite a few notable figures in the community such as Auth, Billionaire, Shadowocto, Trol
+A recreation of Hypixel **SkyWars**, **Bed Wars**, **Duels**, and **The Pit**, with bots, friends, parties, and Watchdog/NCP in one Spigot plugin.
 
-A recreation of Hypixel **SkyWars** and **Bed Wars** as they were in summer 2020, all in one Spigot plugin.
+This repository now includes the supplied complete sources merged with the rank, title, and world-filtered Tab changes. Plugin version: **1.1.0-merged**.
+
+See [完整源码合并与构建说明](docs/merged-source-build.md) for build dependencies, retained modules, tests, deployment steps, and platform limits.
 
 ## Fork Changes
 
@@ -23,6 +25,9 @@ See [Rank 括号颜色与 Title 前缀](docs/rank-title-guide.md) for the curren
   using mid-2020 (v1.6) prices.
 - **SkyWars:** Solo/Teams, Normal/Insane. Includes cages, kits, loot tables, refills, Doom/end phases and
   spectators.
+- **Duels:** Classic, Boxing, NoDebuff, and Bridge, with per-mode bot matching preferences.
+- **The Pit:** generated world, levels, rewards, persisted stats, and bots.
+- **Social:** friends, parties, party chat, and party queues.
 - **Bots:** each bot is a perfectly emulated serverside player, bots are also checked by the anticheat. Bots have human-like aim and CPS,
   bridging styles, looting, chat, and 2020-style names and skins. A configurable share of bots can cheat.
 - **Watchdog:** a packet-level anticheat modelled on NoCheatPlus's check set (moving, fight, block place/break,
@@ -56,6 +61,10 @@ Use the compass or the NPCs in the lobby to join a game. Settings are in `run/pl
 |---|---|
 | `/play <mode>` | Join a game: `solo_normal`, `solo_insane`, `teams_normal`, `teams_insane`, `bedwars_eight_one`, `bedwars_eight_two`, `bedwars_four_three`, `bedwars_four_four` |
 | `/lobby` | Back to the lobby |
+| `/pit` | Enter The Pit |
+| `/play duels_classic_duel` | Classic Duel; also `duels_boxing_duel`, `duels_potion_duel`, and `duels_bridge_duel` |
+| `/duels bots <mode> <on or off>` | Set bot matching preference for `classic`, `boxing`, `nodebuff`, or `bridge` |
+| `/friend` / `/party` | Friends and party commands |
 | `/h2020 create <mode> [map]` | Start a game on a specific map |
 | `/h2020 games` / `/h2020 watch <id>` | List games / spectate one |
 | `/h2020 fillspeed <x>` | How fast bots fill games (1 = real 2020 queue times) |

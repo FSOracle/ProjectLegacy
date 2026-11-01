@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'net.h2020'
-version = '1.0.0'
+version = '1.1.0-merged'
 
 repositories {
     mavenCentral()
@@ -12,11 +12,33 @@ repositories {
     maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
+// Recovered from the source archive's built plugin; the original policy classes are unchanged.
+def ncpJar = file(findProperty('ncpJar') ?: 'vendor/ncp-policy-recovered.jar')
+def ncpHash = 'efe0c694126e6daa2b45ab842604d533914d0ae007fb6d412adcd4a9ed893523'
+if (!ncpJar.isFile()) throw new GradleException("NCP policy jar not found: " + ncpJar)
+def ncpDigest = java.security.MessageDigest.getInstance('SHA-256').digest(ncpJar.bytes).encodeHex().toString()
+if (ncpDigest != ncpHash) throw new GradleException("NCP policy jar hash mismatch: " + ncpDigest)
+
 dependencies {
+    compileOnly files(ncpJar)
     // Full Spigot 1.8.8 server jar: Bukkit API + NMS (v1_8_R3) + bundled Netty/Guava/Gson.
     compileOnly 'org.spigotmc:spigot:1.8.8-R0.1-SNAPSHOT'
     testImplementation 'org.spigotmc:spigot:1.8.8-R0.1-SNAPSHOT'
+    testImplementation files(ncpJar)
     testImplementation 'junit:junit:4.13.2'
+}
+
+// The imported NCP contract checks use minimal API stubs, isolated from real Bukkit/JUnit tests.
+sourceSets {
+    contractTest {
+        java.srcDir 'src/contractTest/java'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    contractTestImplementation.extendsFrom testImplementation
+    contractTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 test {
@@ -32,4 +54,90 @@ tasks.withType(JavaCompile).configureEach {
 
 jar {
     archiveFileName = 'Hypixel2020.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from({ zipTree(ncpJar) }) {
+        exclude 'plugin.yml', 'META-INF/MANIFEST.MF', 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+    }
 }
+
+def contractChecks = [
+        ncpContractTest: 'net.h2020.watchdog.ncp.NcpBridgeTest',
+        friendStoreContractTest: 'net.h2020.friend.FriendStoreTest',
+        friendTtlContractTest: 'net.h2020.friend.FriendTtlTest',
+        friendPurgeContractTest: 'net.h2020.friend.FriendPurgeTest',
+        pitContractTest: 'net.h2020.pit.PitContractTest',
+        expandedPitLayoutTest: 'net.h2020.pit.ExpandedPitLayoutTest',
+        duelsUnitTest: 'net.h2020.duels.DuelsUnitTest'
+]
+contractChecks.each { taskName, entryPoint ->
+    tasks.register(taskName, JavaExec) {
+        dependsOn contractTestClasses
+        classpath = sourceSets.contractTest.runtimeClasspath
+        mainClass = entryPoint
+        def scratch = layout.buildDirectory.dir("tmp/contracts/${taskName}")
+        systemProperty 'java.io.tmpdir', scratch.get().asFile.absolutePath
+        doFirst { scratch.get().asFile.mkdirs() }
+    }
+    check.dependsOn taskName
+}
+
+tasks.register('verifyPluginJar') {
+    dependsOn jar
+    inputs.file(tasks.jar.archiveFile)
+    inputs.file(ncpJar)
+    doLast {
+        def required = [
+                'net/h2020/H2020Plugin.class',
+                'net/h2020/NcpBootstrap.class',
+                'net/h2020/duels/DuelsModule.class',
+                'net/h2020/duels/DuelGame.class',
+                'net/h2020/pit/PitModule.class',
+                'net/h2020/pit/PitBotManager.class',
+                'net/h2020/pit/PitBrain.class',
+                'net/h2020/pit/SqlitePitStore.class',
+                'net/h2020/friend/FriendModule.class',
+                'net/h2020/social/party/PartyModule.class',
+                'net/h2020/bedwars/BedwarsModule.class',
+                'net/h2020/skywars/SkywarsModule.class',
+                'net/h2020/core/command/RankCommand.class',
+                'net/h2020/core/command/TitleCommand.class',
+                'net/h2020/core/profile/NameFormatting.class',
+                'net/h2020/core/packet/WorldTabList.class',
+                'fr/neatmonster/nocheatplus/policy/AutomaticActionPolicy.class',
+                'plugin.yml', 'config.yml', 'LICENSE.txt', 'BuildParameters.properties'
+        ]
+        def artifact = new java.util.zip.ZipFile(tasks.jar.archiveFile.get().asFile)
+        def dependency = new java.util.zip.ZipFile(ncpJar)
+        try {
+            def names = artifact.entries().collect { it.name }
+            if (names.size() != names.toSet().size()) throw new GradleException('Duplicate entries in plugin jar')
+            required.each { name ->
+                if (artifact.getEntry(name) == null) throw new GradleException("Plugin jar is missing: ${name}")
+            }
+            if (artifact.getEntry('org/bukkit/entity/Player.class') != null ||
+                    names.any { it.startsWith('org/junit/') || it.contains('/NameFormattingTest') ||
+                            it.contains('/NcpBridgeTest') }) {
+                throw new GradleException('Test classes or API stubs leaked into plugin jar')
+            }
+            int preserved = 0
+            dependency.entries().each { entry ->
+                // The supplied sources intentionally replace this host-aware NCP component.
+                if (!entry.name.endsWith('.class') ||
+                        entry.name.startsWith('fr/neatmonster/nocheatplus/NoCheatPlus')) return
+                def packaged = artifact.getEntry(entry.name)
+                if (packaged == null) throw new GradleException("Missing NCP class: ${entry.name}")
+                def expected = dependency.getInputStream(entry).withCloseable { it.bytes }
+                def actual = artifact.getInputStream(packaged).withCloseable { it.bytes }
+                if (!java.util.Arrays.equals(expected, actual)) {
+                    throw new GradleException("NCP class replaced unexpectedly: ${entry.name}")
+                }
+                preserved++
+            }
+            logger.lifecycle("Merged plugin verified: ${required.size()} required entries, ${preserved} unchanged NCP classes; no test stubs.")
+        } finally {
+            artifact.close()
+            dependency.close()
+        }
+    }
+}
+check.dependsOn verifyPluginJar

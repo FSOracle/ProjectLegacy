@@ -82,6 +82,8 @@ public final class NpcManager implements Listener, PacketHub.Listener {
     private static final List<Spec> SPECS = Arrays.asList(
             new Spec("bedwars", null, GameFamily.BEDWARS, null, "BED WARS", -2.5, 6),
             new Spec("skywars", null, GameFamily.SKYWARS, null, "SKYWARS", 2.5, 6),
+            new Spec("duels", null, GameFamily.DUELS, null, "DUELS", -8.5, 8),
+            new Spec("pit", null, null, null, "THE PIT", 8.5, 8),
             new Spec("bw_solo", GameFamily.BEDWARS, null, GameType.BEDWARS_SOLO, "SOLO", -4.5, 6),
             new Spec("bw_doubles", GameFamily.BEDWARS, null, GameType.BEDWARS_DOUBLES, "DOUBLES", -1.5, 6.5),
             new Spec("bw_3v3v3v3", GameFamily.BEDWARS, null, GameType.BEDWARS_3V3V3V3, "3v3v3v3", 1.5, 6.5),
@@ -89,7 +91,11 @@ public final class NpcManager implements Listener, PacketHub.Listener {
             new Spec("sw_solo_normal", GameFamily.SKYWARS, null, GameType.SKYWARS_SOLO_NORMAL, "SOLO NORMAL", -4.5, 6),
             new Spec("sw_solo_insane", GameFamily.SKYWARS, null, GameType.SKYWARS_SOLO_INSANE, "SOLO INSANE", -1.5, 6.5),
             new Spec("sw_teams_normal", GameFamily.SKYWARS, null, GameType.SKYWARS_TEAMS_NORMAL, "TEAMS NORMAL", 1.5, 6.5),
-            new Spec("sw_teams_insane", GameFamily.SKYWARS, null, GameType.SKYWARS_TEAMS_INSANE, "TEAMS INSANE", 4.5, 6));
+            new Spec("sw_teams_insane", GameFamily.SKYWARS, null, GameType.SKYWARS_TEAMS_INSANE, "TEAMS INSANE", 4.5, 6),
+            new Spec("duel_classic", GameFamily.DUELS, null, GameType.DUELS_CLASSIC, "CLASSIC", -4.5, 6),
+            new Spec("duel_boxing", GameFamily.DUELS, null, GameType.DUELS_BOXING, "BOXING", -1.5, 6.5),
+            new Spec("duel_nodebuff", GameFamily.DUELS, null, GameType.DUELS_NODEBUFF, "NODEBUFF", 1.5, 6.5),
+            new Spec("duel_bridge", GameFamily.DUELS, null, GameType.DUELS_BRIDGE, "BRIDGE", 4.5, 6));
 
     private final Core core;
     private final List<Live> live = new ArrayList<>();
@@ -339,7 +345,7 @@ public final class NpcManager implements Listener, PacketHub.Listener {
     // ---- counts ----
 
     private String countLine(Spec s) {
-        int n = s.mode != null ? core.counts.count(s.mode) : core.counts.count(s.target);
+        int n = s.id.equals("pit") ? core.counts.decorative(2700, 14) : s.mode != null ? core.counts.count(s.mode) : core.counts.count(s.target);
         return ChatColor.YELLOW + HypixelFormat.commas(n) + " Players";
     }
 
@@ -379,7 +385,8 @@ public final class NpcManager implements Listener, PacketHub.Listener {
         Runnable r = new Runnable() {
             @Override public void run() {
                 if (!player.isOnline()) return;
-                if (l.spec.mode != null) core.games.queue(player, l.spec.mode);
+                if (l.spec.mode != null) core.games.queueParty(player, l.spec.mode);
+                else if (l.spec.id.equals("pit")) player.performCommand("pit");
                 else core.lobby.connectFamily(player, l.spec.target);
             }
         };

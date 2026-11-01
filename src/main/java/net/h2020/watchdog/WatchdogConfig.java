@@ -22,6 +22,8 @@ import java.util.Map;
  */
 public final class WatchdogConfig {
     public boolean banHumans = false;
+    /** Zero disables punishment for unmapped native checks; positive is an explicit shared VL threshold. */
+    public double ncpUnmappedBanThreshold = 0;
     public boolean exemptAdmins = true;
     /**
      * watchdog.admin-reach-limit: reach limit (blocks) for ops / admins, so the owner's client can film long-reach hits
@@ -122,6 +124,7 @@ public final class WatchdogConfig {
         c.checks.putAll(defaults());
         ConfigurationSection s = plugin.getConfig().getConfigurationSection("watchdog");
         if (s == null) return c;
+        c.ncpUnmappedBanThreshold = s.getDouble("ncp-unmapped-ban-threshold", 0);
         c.banHumans = s.getBoolean("ban-humans", c.banHumans);
         c.exemptAdmins = s.getBoolean("exempt-admins", c.exemptAdmins);
         c.adminReachLimit = Math.max(0, s.getDouble("admin-reach-limit", c.adminReachLimit));

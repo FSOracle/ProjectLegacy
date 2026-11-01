@@ -20,6 +20,7 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 public final class HelpMenu implements Listener {
 
     private static final String[][] PLAY = {
+            {"/friend", "Manage friends (alias /f)"},
             {"/play bedwars_eight_one", "Bed Wars Solo (also _eight_two, _four_three, _four_four)"},
             {"/play solo_normal", "SkyWars Solo Normal (also solo_insane, teams_normal, teams_insane)"},
             {"/lobby", "Back to the lobby (aliases /l, /hub)"},

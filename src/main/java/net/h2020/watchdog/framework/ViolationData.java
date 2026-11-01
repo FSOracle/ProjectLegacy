@@ -24,6 +24,8 @@ public final class ViolationData {
 
     public double vl() { return vl; }
 
+    public void set(double amount, long now) { vl = Math.max(0, amount); lastUpdate = now; }
+
     public void add(double amount) { vl = Math.max(0, vl + amount); }
 
     public void multiply(double f) { vl = Math.max(0, vl * f); }

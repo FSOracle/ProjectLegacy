@@ -56,7 +56,9 @@ public final class LobbyMenus {
         m.set(15, deco(new ItemBuilder(Material.SAPLING, 1, 3), "SkyBlock", "Sandbox", "Collect resources, craft items, and grow your island in the brand-new SkyBlock world!", 31000, 1));
 
         m.set(19, deco(new ItemBuilder(Material.BOW), "Murder Mystery", "Social Deduction", "Can you find the Murderer before everyone is killed?", 12500, 2));
-        m.set(20, deco(new ItemBuilder(Material.FISHING_ROD), "Duels", "1v1 Combat", "Fight your opponents in a variety of 1v1 and 2v2 modes.", 8200, 3));
+        m.set(20, gameIcon(new ItemBuilder(Material.FISHING_ROD), "Duels", "1v1 Combat", "Fight opponents in a variety of Duels modes.", core.counts.count(GameFamily.DUELS), true), new Menu.Click() {
+            @Override public void click(Player pl, ClickType type) { pl.closeInventory(); core.lobby.connectFamily(pl, GameFamily.DUELS); }
+        });
         m.set(21, deco(new ItemBuilder(Material.WORKBENCH), "Build Battle", "Creative Building", "Build a masterpiece on a given theme and vote on everyone's builds!", 2600, 4));
         m.set(22, deco(new ItemBuilder(Material.GOLDEN_APPLE), "UHC Champions", "Survival PvP", "Gather resources, craft gear and fight to be the last one standing in the Ultra Hardcore world.", 900, 5));
         m.set(23, deco(new ItemBuilder(Material.DIAMOND_SWORD), "Blitz Survival Games", "Survival PvP", "Loot chests, choose a kit, and survive. Grab the Blitz Star to unleash a powerful ability!", 700, 6));
@@ -68,7 +70,9 @@ public final class LobbyMenus {
         m.set(30, deco(new ItemBuilder(Material.IRON_BARDING), "Cops and Crims", "Team Combat", "Defend the bomb site or plant the bomb in this team-based shooter!", 300, 11));
         m.set(31, deco(new ItemBuilder(Material.STONE_AXE), "Warlords", "Team Combat", "Choose a class and fight in a large scale battle to capture the flag!", 350, 12));
         m.set(32, deco(new ItemBuilder(Material.SKULL_ITEM, 1, 0), "Smash Heroes", "Arena Brawler", "Knock your opponents off the map using unique heroes and abilities!", 250, 13));
-        m.set(33, deco(new ItemBuilder(Material.DIRT), "The Pit", "Survival PvP", "Jump in the Pit and fight! Earn gold, upgrades and prestige.", 2700, 14));
+        m.set(33, gameIcon(new ItemBuilder(Material.DIRT), "The Pit", "Survival PvP", "Jump in the Pit and fight! Earn gold, upgrades and prestige.", core.counts.decorative(2700, 14), true), new Menu.Click() {
+            @Override public void click(Player pl, ClickType type) { pl.closeInventory(); pl.performCommand("pit"); }
+        });
         m.set(34, deco(new ItemBuilder(Material.DARK_OAK_DOOR_ITEM), "Housing", "Creative", "Build your own house, invite your friends and visit others!", 1900, 15));
 
         m.set(49, new ItemBuilder(Material.BOOKSHELF).name(ChatColor.GREEN + "Main Lobby")
@@ -107,6 +111,14 @@ public final class LobbyMenus {
                     "Four teams of four. Bigger maps, bigger fights.");
             close(m, 31);
             m.open(p);
+        } else if (family == GameFamily.DUELS) {
+            Menu m = new Menu("Play Duels", 4);
+            mode(m, 10, GameType.DUELS_CLASSIC, new ItemBuilder(Material.IRON_SWORD), "Classic Duel", "Classic", "Fight in a classic duel.");
+            mode(m, 12, GameType.DUELS_BOXING, new ItemBuilder(Material.LEATHER), "Boxing Duel", "Boxing", "Be the first to land 100 hits.");
+            mode(m, 14, GameType.DUELS_NODEBUFF, new ItemBuilder(Material.POTION), "NoDebuff Duel", "NoDebuff", "Fight with healing potions.");
+            mode(m, 16, GameType.DUELS_BRIDGE, new ItemBuilder(Material.CLAY_BRICK), "Bridge Duel", "Bridge", "Cross the bridge and score goals.");
+            close(m, 31);
+            m.open(p);
         } else {
             Menu m = new Menu("Play SkyWars", 4);
             mode(m, 10, GameType.SKYWARS_SOLO_NORMAL, new ItemBuilder(Material.EYE_OF_ENDER), "SkyWars (Solo Normal)", "Solo Normal",
@@ -129,7 +141,7 @@ public final class LobbyMenus {
         m.set(slot, b.hideAll().build(), new Menu.Click() {
             @Override public void click(Player p, ClickType ct) {
                 p.closeInventory();
-                core.games.queue(p, type);
+                core.games.queueParty(p, type);
             }
         });
     }
@@ -145,7 +157,7 @@ public final class LobbyMenus {
     public void openLobbySelector(final Player p) {
         final GameFamily family = core.lobby.familyOf(p.getWorld());
         boolean main = core.lobby.isMainLobby(p.getWorld());
-        String title = main ? "Lobby Selector" : (family == GameFamily.BEDWARS ? "Bed Wars Lobby Selector" : "SkyWars Lobby Selector");
+        String title = main ? "Lobby Selector" : (family == GameFamily.BEDWARS ? "Bed Wars Lobby Selector" : family == GameFamily.DUELS ? "Duels Lobby Selector" : "SkyWars Lobby Selector");
         int count = core.config.lobbyCount;
         int rows = Math.min(6, 2 + (count + 6) / 7);
         Menu m = new Menu(title, rows);
@@ -223,7 +235,11 @@ public final class LobbyMenus {
         m.set(31, new ItemBuilder(Material.BOOK).name(ChatColor.GREEN + "Quests & Challenges")
                 .lore(ChatColor.GRAY + "Complete quests and challenges to", ChatColor.GRAY + "earn Hypixel Experience and coins.").build(), unavailable("Quests"));
         m.set(32, new ItemBuilder(Material.SKULL_ITEM, 1, 3).name(ChatColor.GREEN + "Social")
-                .lore(ChatColor.GRAY + "Manage your friends, party and guild.").build(), unavailable("Social"));
+                .lore(ChatColor.GRAY + "Manage your friends, party and guild.").build(), new Menu.Click() {
+            @Override public void click(Player pl, ClickType type) {
+                if (type == ClickType.LEFT) new SocialMenus(core).open(pl);
+            }
+        });
         m.set(33, new ItemBuilder(Material.POTION, 1, 8227).name(ChatColor.GREEN + "Network Boosters")
                 .lore(ChatColor.GRAY + "Activate Network Boosters to give", ChatColor.GRAY + "everyone in a game triple coins!").build(), unavailable("Network Boosters"));
         m.set(34, new ItemBuilder(Material.REDSTONE_COMPARATOR).name(ChatColor.GREEN + "Settings & Visibility")
@@ -280,8 +296,7 @@ public final class LobbyMenus {
             m.set(slots[i], new ItemBuilder(mat, 1, data).name(ChatColor.GREEN + items[i][1])
                     .lore(ChatColor.GRAY + "Browse " + items[i][1] + ".", "", ChatColor.YELLOW + "Click to browse!").hideAll().build(), unavailable(items[i][1]));
         }
-        m.set(40, new ItemBuilder(Material.EMERALD).name(ChatColor.GRAY + "Total Coins: " + ChatColor.GOLD + HypixelFormat.commas(bw ? d.bwCoins : d.swCoins))
-                .lore(ChatColor.GOLD + "https://store.hypixel.net").build());
+        m.set(40, new ItemBuilder(Material.EMERALD).name(ChatColor.GRAY + "Total Coins: " + ChatColor.GOLD + HypixelFormat.commas(bw ? d.bwCoins : d.swCoins)).build());
         m.open(p);
         click(p);
     }

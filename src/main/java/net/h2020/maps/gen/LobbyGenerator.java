@@ -29,7 +29,7 @@ import java.util.Random;
  */
 public final class LobbyGenerator {
     public static final int PY = 70;
-    public static final String MAIN = "h2020_lobby", BEDWARS = "h2020_lobby_bedwars", SKYWARS = "h2020_lobby_skywars";
+    public static final String MAIN = "h2020_lobby", BEDWARS = "h2020_lobby_bedwars", SKYWARS = "h2020_lobby_skywars", DUELS = "h2020_lobby_duels";
 
     private LobbyGenerator() {}
 
@@ -38,12 +38,15 @@ public final class LobbyGenerator {
         Map<String, double[]> m = new LinkedHashMap<String, double[]>();
         if (MAIN.equals(world)) {
             pad(m, "bedwars", -4, -9); pad(m, "skywars", 4, -9);
-            pad(m, "duels", -9, -4); pad(m, "murder_mystery", 9, -4);
+            pad(m, "duels", -9, -8); pad(m, "pit", 8, -8); pad(m, "murder_mystery", 9, -4);
             pad(m, "build_battle", -9, 4); pad(m, "uhc", 9, 4);
             pad(m, "arcade", -4, 9); pad(m, "tnt_games", 4, 9);
         } else if (BEDWARS.equals(world)) {
             pad(m, "bedwars_eight_one", -7, -8); pad(m, "bedwars_eight_two", -3, -10);
             pad(m, "bedwars_four_three", 3, -10); pad(m, "bedwars_four_four", 7, -8);
+        } else if (DUELS.equals(world)) {
+            pad(m, "duels_classic_duel", -7, -8); pad(m, "duels_boxing_duel", -3, -10);
+            pad(m, "duels_potion_duel", 3, -10); pad(m, "duels_bridge_duel", 7, -8);
         } else if (SKYWARS.equals(world)) {
             pad(m, "solo_normal", -7, -8); pad(m, "solo_insane", -3, -10);
             pad(m, "teams_normal", 3, -10); pad(m, "teams_insane", 7, -8);

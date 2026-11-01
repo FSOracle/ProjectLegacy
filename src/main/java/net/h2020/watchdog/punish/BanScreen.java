@@ -12,7 +12,7 @@ public final class BanScreen {
         return "§cYou are temporarily banned for §f" + duration(remainingMs) + " §cfrom this server!\n"
                 + "\n"
                 + "§7Reason: §fCheating through the use of unfair game advantages.\n"
-                + "§7Find out more: §b§nhttps://www.hypixel.net/appeal\n"
+                + "§7Find out more: §b§nhttps://hypixel.today/appeal\n"
                 + "\n"
                 + "§7Ban ID: §f#" + banId + "\n"
                 + "§7Sharing your Ban ID may affect the processing of your appeal!";

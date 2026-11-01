@@ -17,8 +17,8 @@ public final class CoreConfig {
     public Rank defaultRank = Rank.MVP_PLUS;
     public ChatColor defaultPlusColor = ChatColor.RED;
     public int defaultLevel = 87;
-    public String tabHeader = ChatColor.AQUA + "You are playing on " + ChatColor.YELLOW + ChatColor.BOLD + "MC.HYPIXEL.NET";
-    public String tabFooter = ChatColor.AQUA + "Ranks, Boosters & MORE! " + ChatColor.RED + ChatColor.BOLD + "STORE.HYPIXEL.NET";
+    public String tabHeader = ChatColor.AQUA + "You are playing on " + ChatColor.YELLOW + ChatColor.BOLD + "HYPIXEL.TODAY";
+    public String tabFooter = "";
     public int lobbyNumber = 3;
     public int lobbyCount = 12;
     public int lobbyBots = 15;

@@ -37,6 +37,7 @@ public final class LobbyCommand implements CommandExecutor {
             String a = args[0].toLowerCase();
             if (a.startsWith("b")) target = GameFamily.BEDWARS;
             else if (a.startsWith("s")) target = GameFamily.SKYWARS;
+            else if (a.equals("duels")) target = GameFamily.DUELS;
             else target = null;
         } else if (g != null) {
             target = g.type().family;

@@ -12,8 +12,8 @@ core:
   default-level: 87
 
   tab:
-    header: "&bYou are playing on &e&lMC.HYPIXEL.NET"
-    footer: "&bRanks, Boosters & MORE! &c&lSTORE.HYPIXEL.NET"
+    header: "&bYou are playing on &e&lHYPIXEL.TODAY"
+    footer: ""
 
   # Colour codes use &. Lobby instance number shown on the main lobby scoreboard ("Lobby: #3") and how many lobbies the selector lists.
   lobby-number: 3
@@ -69,6 +69,8 @@ core:
     extra-vertical: 0.085
 
 watchdog:
+  # Takes effect after server restart.
+  enabled: true
   # "[WD] Name failed ..." chat alerts for admins. Off by default; /wd alerts toggles them for yourself.
   staff-alerts: false
   # The same alerts in the server console. Every flag is always written to plugins/Hypixel2020/watchdog.log.
@@ -89,3 +91,15 @@ watchdog:
     # a drop, onGround=false) right before the attack make vanilla crit. Only that burst, followed by its attack, is
     # accepted (Critical, SurvivalFly, NoFall, Timer, FlyingFrequency, MorePackets, PacketOrder); anything else is checked.
     legacy-2020-crits-gap: false
+
+# Five minutes is a community-reported approximation, not an official 2020 specification.
+friend:
+  request-ttl-seconds: 300
+
+# Party limits. max-members includes the leader (2-100); invites-per-minute is per sender (1-1000).
+party:
+  max-members: 8
+  invites-per-minute: 10
+duels:
+  # Seconds a lone queued player waits for a real opponent before a bot is matched (only if /duels bots <mode> is on).
+  bot-wait-seconds: 10

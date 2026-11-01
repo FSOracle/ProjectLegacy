@@ -31,7 +31,7 @@ public final class PlayCommand implements TabExecutor {
             p.sendMessage(ChatColor.RED + "Unknown game! Available: " + ids());
             return true;
         }
-        core.games.queue(p, type);
+        core.games.queueParty(p, type);
         return true;
     }
 

@@ -16,6 +16,9 @@ public interface WatchdogService {
     double violationLevel(Player p, CheckType check);
     /** Exempt a player from a check (or whole group via any check of it when group=true) for durationMs. */
     void exempt(Player p, CheckType check, long durationMs);
+    default void exemptGroup(Player p, CheckType.Group group, long durationMs) {
+        for (CheckType c : CheckType.values()) if (c.group == group) exempt(p, c, durationMs);
+    }
     boolean isExempt(Player p, CheckType check);
     /** Ban flow: Hypixel ban screen for real players; bots are removed with the in-game
      *  "A player has been removed from your game." message and the reporter thanks. */

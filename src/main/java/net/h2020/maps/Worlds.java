@@ -88,6 +88,33 @@ public final class Worlds implements Listener {
 
     public static File container() { return Bukkit.getWorldContainer(); }
 
+    /** Reserve a new instance, never reusing a path. Linux mount table is required to reject bind mounts.
+     * This is not a sandbox against root or code able to rename directories as the server uid. */
+    public static File reserveInstance(String leaf) throws IOException {
+        if (leaf == null || !leaf.matches("[A-Za-z0-9_-]{1,120}")) throw new IOException("invalid instance name");
+        Path root = container().toPath().toRealPath();
+        Path parent = root.resolve(INSTANCE_DIR);
+        try { Files.createDirectory(parent); }
+        catch (java.nio.file.FileAlreadyExistsException exists) { /* validate existing parent below */ }
+        if (Files.isSymbolicLink(parent) || !Files.isDirectory(parent, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                || !parent.toRealPath().equals(parent)) throw new IOException("unsafe instances parent " + parent);
+        if (!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("linux"))
+            throw new IOException("cannot verify instance mounts on this platform");
+        for (String line : Files.readAllLines(java.nio.file.Paths.get("/proc/self/mountinfo"), java.nio.charset.StandardCharsets.UTF_8)) {
+            String[] parts = line.split(" ");
+            if (parts.length < 6) throw new IOException("malformed mount table");
+            String mount = parts[4].replace("\\040", " ").replace("\\011", "\t").replace("\\012", "\n").replace("\\134", "\\");
+            if (java.nio.file.Paths.get(mount).toAbsolutePath().normalize().equals(parent))
+                throw new IOException("instances parent is a mount point: " + parent);
+        }
+        String worldName = INSTANCE_DIR + "/" + leaf;
+        if (Bukkit.getWorld(worldName) != null) throw new IOException("world already loaded: " + worldName);
+        Path result = parent.resolve(leaf);
+        Files.createDirectory(result); // atomic non-replacement, including dangling symlinks
+        if (Bukkit.getWorld(worldName) != null) throw new IOException("world became loaded: " + worldName);
+        return result.toFile();
+    }
+
     /** Copy a world folder, skipping uid.dat / session.lock (so Bukkit accepts the copy as a new world). */
     public static void copyWorld(File src, File dst) throws IOException {
         final Path from = src.toPath(), to = dst.toPath();

@@ -29,11 +29,11 @@ public final class LobbyItems {
         inv.clear();
         inv.setItem(0, new ItemBuilder(Material.COMPASS).name(GAME_MENU)
                 .lore(family == null ? ChatColor.GRAY + "Right Click to bring up the Game Menu!"
-                        : ChatColor.GRAY + "Right Click to choose a " + (family == GameFamily.BEDWARS ? "Bed Wars" : "SkyWars") + " mode!").build());
+                        : ChatColor.GRAY + "Right Click to choose a " + (family == GameFamily.BEDWARS ? "Bed Wars" : family == GameFamily.DUELS ? "Duels" : "SkyWars") + " mode!").build());
         inv.setItem(1, new ItemBuilder(Material.SKULL_ITEM, 1, 3).skullOwner(p.getName()).name(PROFILE)
                 .lore(ChatColor.GRAY + "Right-click to browse quests, view", ChatColor.GRAY + "achievements, activate Network",
                         ChatColor.GRAY + "Boosters and more!").build());
-        if (family != null) {
+        if (family != null && family != GameFamily.DUELS) {
             inv.setItem(2, new ItemBuilder(Material.EMERALD).name(SHOP)
                     .lore(ChatColor.GRAY + "Right-click to open the " + (family == GameFamily.BEDWARS ? "Bed Wars" : "SkyWars") + " Shop!").build());
         }

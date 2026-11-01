@@ -72,9 +72,10 @@ public final class WatchdogCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(P + "Invalid seconds: " + args[3]);
                     return true;
                 }
+                if (ms <= 0) { sender.sendMessage(P + "Seconds must be positive."); return true; }
                 String what = args[2].toUpperCase();
                 if (what.equals("ALL")) {
-                    for (CheckType c : CheckType.values()) service.exempt(t, c, ms);
+                    service.exemptAll(t, ms);
                 } else {
                     CheckType.Group group = null;
                     for (CheckType.Group g : CheckType.Group.values()) if (g.name().equals(what)) group = g;
@@ -116,8 +117,7 @@ public final class WatchdogCommand implements CommandExecutor, TabCompleter {
             case "reset": {
                 Player t = target(sender, args, 1);
                 if (t == null) return true;
-                service.forget(t.getUniqueId());
-                service.bans().cancelPending(t.getUniqueId());
+                service.resetAll(t);
                 sender.sendMessage(P + "Reset all violation levels (and a pending ban) of " + t.getName() + ".");
                 return true;
             }
@@ -152,6 +152,7 @@ public final class WatchdogCommand implements CommandExecutor, TabCompleter {
 
     private void vl(CommandSender s, Player t) {
         PlayerData d = service.dataIfPresent(t.getUniqueId());
+        s.sendMessage(P + "Values are decayed last-observed NCP snapshots, not live authoritative levels; unmapped checks are excluded.");
         s.sendMessage(ChatColor.GOLD + "Violation levels of " + t.getName() + ChatColor.GRAY + " (ping " + Util.ping(t) + "ms"
                 + (Util.isBot(t) ? ", bot" : "") + (service.bans().isPending(t.getUniqueId()) ? ChatColor.RED + ", ban pending" : "")
                 + ChatColor.GRAY + ")");
@@ -172,7 +173,7 @@ public final class WatchdogCommand implements CommandExecutor, TabCompleter {
             long left = e.getValue() - System.currentTimeMillis();
             if (left > 0) s.sendMessage(ChatColor.DARK_GRAY + "  exempt " + e.getKey().name() + " " + (left / 1000) + "s");
         }
-        if (shown == 0) s.sendMessage(ChatColor.GREEN + "  clean");
+        if (shown == 0) s.sendMessage(ChatColor.GRAY + "  no observed values");
     }
 
     private Player target(CommandSender s, String[] args, int idx) {

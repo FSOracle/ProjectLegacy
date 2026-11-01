@@ -121,19 +121,12 @@ public final class StoredMapTemplate implements MapTemplate {
         if (!new File(src, "level.dat").isFile())
             throw new IllegalStateException("Map " + name + " has no world (missing " + src + "/level.dat)");
         String worldName = Worlds.INSTANCE_DIR + "/" + instanceWorldName;
-        World existing = Bukkit.getWorld(worldName);
-        if (existing != null) {
-            service.plugin.getLogger().warning("[maps] instance " + worldName + " already loaded, recycling it");
-            destroyNow(existing);
-        }
-        File dst = new File(Worlds.container(), worldName);
-        if (dst.exists() && !Worlds.delete(dst))
-            throw new IllegalStateException("Could not clear stale instance folder " + dst);
+        File dst;
         try {
+            dst = Worlds.reserveInstance(instanceWorldName);
             Worlds.copyWorld(src, dst);
         } catch (IOException e) {
-            Worlds.delete(dst);
-            throw new IllegalStateException("Could not copy map " + name + " to " + dst, e);
+            throw new IllegalStateException("Could not reserve/copy map " + name + "; partial data retained", e);
         }
         Vector spawn = point(MapKeys.WAITING_LOBBY);
         if (spawn == null) spawn = point(MapKeys.MID);
@@ -144,6 +137,7 @@ public final class StoredMapTemplate implements MapTemplate {
         w.setSpawnLocation(spawn.getBlockX(), spawn.getBlockY(), spawn.getBlockZ());
         preload(w);
         service.instances.put(w.getName().toLowerCase(), this);
+        service.ownedWorlds.put(w.getName().toLowerCase(), w);
         return w;
     }
 
@@ -179,7 +173,10 @@ public final class StoredMapTemplate implements MapTemplate {
 
     private void destroyLater(final World world, final int attempt) {
         final String wname = world.getName();
-        final File folder = world.getWorldFolder();
+        if (service.instances.get(wname.toLowerCase()) != this || service.ownedWorlds.get(wname.toLowerCase()) != world || Bukkit.getWorld(wname) != world) {
+            service.plugin.getLogger().warning("[maps] refusing to unload unowned instance " + wname);
+            return;
+        }
         evacuate(world);
         boolean ok = Bukkit.unloadWorld(world, false);
         if (!ok) {
@@ -190,38 +187,30 @@ public final class StoredMapTemplate implements MapTemplate {
             Bukkit.getScheduler().runTaskLater(service.plugin, new Runnable() {
                 @Override public void run() {
                     World w = Bukkit.getWorld(wname);
-                    if (w != null) destroyLater(w, attempt + 1);
-                    else deleteAsync(folder);
+                    if (w == world) destroyLater(w, attempt + 1);
+                    else service.plugin.getLogger().warning("[maps] instance changed or unloaded; retaining " + wname);
                 }
             }, 20L);
             return;
         }
         service.instances.remove(wname.toLowerCase());
-        deleteAsync(folder);
+        service.ownedWorlds.remove(wname.toLowerCase());
+        service.plugin.getLogger().warning("[maps] retained instance " + wname + "; monitor disk use");
     }
 
-    /** Synchronous variant used on shutdown / when an instance name is reused. */
+    /** Only unload an instance owned by this template; retain its files. */
     void destroyNow(World world) {
-        File folder = world.getWorldFolder();
+        String wname = world.getName();
+        if (service.instances.get(wname.toLowerCase()) != this || service.ownedWorlds.get(wname.toLowerCase()) != world || Bukkit.getWorld(wname) != world) {
+            service.plugin.getLogger().warning("[maps] refusing to unload unowned instance " + wname);
+            return;
+        }
         evacuate(world);
         if (Bukkit.unloadWorld(world, false)) {
-            service.instances.remove(world.getName().toLowerCase());
-            Worlds.delete(folder);
+            service.instances.remove(wname.toLowerCase());
+        service.ownedWorlds.remove(wname.toLowerCase());
+            service.plugin.getLogger().warning("[maps] retained instance " + wname + "; monitor disk use");
         }
-    }
-
-    private void deleteAsync(final File folder) {
-        if (!service.plugin.isEnabled()) { Worlds.delete(folder); return; }
-        Bukkit.getScheduler().runTaskAsynchronously(service.plugin, new Runnable() {
-            @Override public void run() {
-                // region files can be released a moment after unload on Windows; retry a few times
-                for (int i = 0; i < 5 && !Worlds.delete(folder); i++) {
-                    try { Thread.sleep(500L); } catch (InterruptedException e) { return; }
-                }
-                if (folder.exists())
-                    service.plugin.getLogger().log(Level.WARNING, "[maps] could not delete " + folder + " (deleted on next start)");
-            }
-        });
     }
 
     private void evacuate(World world) {

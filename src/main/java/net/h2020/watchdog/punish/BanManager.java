@@ -43,6 +43,7 @@ public final class BanManager implements Listener {
     private final Map<UUID, BanRecord> bans = new ConcurrentHashMap<UUID, BanRecord>();
     private final Map<UUID, Pending> pending = new ConcurrentHashMap<UUID, Pending>();
     private final Map<UUID, Long> exemptNotified = new ConcurrentHashMap<UUID, Long>();
+    private final Map<String, Long> suppressNotified = new ConcurrentHashMap<String, Long>();
     private final AtomicInteger bansSinceBoot = new AtomicInteger();
     private final Random random = new Random();
 
@@ -79,7 +80,7 @@ public final class BanManager implements Listener {
             try {
                 ConfigurationSection b = s.getConfigurationSection(key);
                 BanRecord r = new BanRecord(UUID.fromString(key), b.getString("name", "?"), b.getString("id", "00000000"),
-                        b.getString("reason", "WATCHDOG"), b.getLong("created"), b.getLong("expires"));
+                        b.getString("reason", "WATCHDOG"), b.getLong("created"), b.getLong("expires"), b.getBoolean("manual", false));
                 if (r.active(now)) bans.put(r.uuid, r);
             } catch (Exception ignored) {}
         }
@@ -94,6 +95,7 @@ public final class BanManager implements Listener {
             y.set(k + ".reason", r.reasonCode);
             y.set(k + ".created", r.created);
             y.set(k + ".expires", r.expires);
+            if (r.manual) y.set(k + ".manual", true);
         }
         final String data = y.saveToString();
         Runnable write = () -> {
@@ -132,6 +134,7 @@ public final class BanManager implements Listener {
             }
             return;
         }
+        if (!Util.isBot(p) && !cfg().banHumans) { suppressed(p.getName(), reasonCode, "queue"); return; }
         final Pending pd = new Pending(p.getUniqueId(), p.getName(), reasonCode, Util.isBot(p));
         pending.put(pd.uuid, pd);
         Game g = gameOf(p);
@@ -153,9 +156,10 @@ public final class BanManager implements Listener {
 
     private void fire(Pending pd) {
         if (pending.remove(pd.uuid) == null) return;
+        if (!pd.bot && !cfg().banHumans) { suppressed(pd.name, pd.reason, "fire"); return; }
         Player p = Bukkit.getPlayer(pd.uuid);
-        if (p != null && p.isOnline()) ban(p, pd.reason);
-        else offlineBan(pd.uuid, pd.name, pd.reason, pd.bot);
+        if (p != null && p.isOnline()) execute(p, pd.reason, false);
+        else offlineBan(pd.uuid, pd.name, pd.reason, pd.bot, false);
     }
 
     public boolean isPending(UUID id) { return pending.containsKey(id); }
@@ -167,16 +171,31 @@ public final class BanManager implements Listener {
 
     // ------------------------------------------------------------------ execution
 
-    /** Immediate ban on the main thread (WatchdogService.ban). */
+    /** Immediate manual ban on the main thread (WatchdogService.ban, /wd ban): always enforced. */
     public void ban(final Player p, final String reasonCode) {
         if (!Bukkit.isPrimaryThread()) {
             service.runMain(() -> ban(p, reasonCode));
             return;
         }
+        execute(p, reasonCode, true);
+    }
+
+    private void suppressed(String name, String reasonCode, String stage) {
+        long now = System.currentTimeMillis();
+        Long last = suppressNotified.get(name.toLowerCase());
+        if (last != null && now - last < 60000) return;
+        suppressNotified.put(name.toLowerCase(), now);
+        service.alerts().broadcast(ChatColor.RED + "[WD] " + ChatColor.GRAY + name + ChatColor.WHITE
+                + " reached the ban threshold of " + ChatColor.RED + reasonCode + ChatColor.GRAY + " (human, ban-humans=false, not kicked)");
+        service.log("BAN-SUPPRESSED", name + " " + reasonCode + " (human, ban-humans=false, " + stage + ")");
+    }
+
+    private void execute(final Player p, final String reasonCode, final boolean manual) {
         if (p == null) return;
         cancelPending(p.getUniqueId());
-        if (!p.isOnline()) { offlineBan(p.getUniqueId(), p.getName(), reasonCode, Util.isBot(p)); return; }
+        if (!p.isOnline()) { offlineBan(p.getUniqueId(), p.getName(), reasonCode, Util.isBot(p), manual); return; }
         boolean bot = Util.isBot(p);
+        if (!bot && !manual && !cfg().banHumans) { suppressed(p.getName(), reasonCode, "execute"); return; }
         if (!bot && cfg().exemptAdmins && Util.isAdmin(p)) {
             p.sendMessage(ChatColor.RED + "[WD] " + ChatColor.GRAY + "You would have been banned for " + ChatColor.RED
                     + reasonCode + ChatColor.GRAY + " (admins are exempt).");
@@ -194,7 +213,7 @@ public final class BanManager implements Listener {
         service.alerts().broadcast(ChatColor.RED + "[WD] " + ChatColor.GRAY + p.getName() + ChatColor.WHITE + " was banned "
                 + ChatColor.GRAY + "(" + reasonCode + ") " + ChatColor.DARK_GRAY + "#" + banId + (bot ? " [bot]" : ""));
         service.log("BAN", p.getName() + " (" + p.getUniqueId() + ") " + reasonCode + " #" + banId + (bot ? " bot" : "")
-                + (bot || cfg().banHumans ? "" : " (kick only, ban-humans=false)"));
+                + (manual ? " manual" : ""));
         service.forget(p.getUniqueId());
 
         if (bot) {
@@ -203,20 +222,19 @@ public final class BanManager implements Listener {
             p.kickPlayer(BanScreen.screen(length - 1000, banId));
             return;
         }
-        if (cfg().banHumans) {
-            bans.put(p.getUniqueId(), new BanRecord(p.getUniqueId(), p.getName(), banId, reasonCode, now, now + length));
-            save();
-        }
+        bans.put(p.getUniqueId(), new BanRecord(p.getUniqueId(), p.getName(), banId, reasonCode, now, now + length, manual));
+        save();
         p.kickPlayer(BanScreen.screen(length - 1000, banId));
     }
 
-    private void offlineBan(UUID uuid, String name, String reasonCode, boolean bot) {
+    private void offlineBan(UUID uuid, String name, String reasonCode, boolean bot, boolean manual) {
+        if (!bot && !manual && !cfg().banHumans) { suppressed(name, reasonCode, "offline"); return; }
         bansSinceBoot.incrementAndGet();
         String banId = BanScreen.newBanId();
         long now = System.currentTimeMillis();
-        boolean persist = cfg().banHumans && !bot;
+        boolean persist = !bot;
         if (persist) {
-            bans.put(uuid, new BanRecord(uuid, name, banId, reasonCode, now, now + cfg().banDays * 86400000L));
+            bans.put(uuid, new BanRecord(uuid, name, banId, reasonCode, now, now + cfg().banDays * 86400000L, manual));
             save();
         }
         service.alerts().broadcast(ChatColor.RED + "[WD] " + ChatColor.GRAY + name + ChatColor.WHITE + " was banned while offline "
@@ -270,7 +288,7 @@ public final class BanManager implements Listener {
             save();
             return;
         }
-        if (!cfg().banHumans) return; // bans are only enforced while ban-humans is on
+        if (!r.manual && !cfg().banHumans) return; // automatic bans are only enforced while ban-humans is on
         e.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, BanScreen.screen(r.expires - now, r.banId));
     }
 
@@ -281,7 +299,7 @@ public final class BanManager implements Listener {
         // Cheaters who log out before the wave still get banned.
         if (pd.task != null) pd.task.cancel();
         pending.remove(pd.uuid);
-        offlineBan(pd.uuid, pd.name, pd.reason, pd.bot);
+        offlineBan(pd.uuid, pd.name, pd.reason, pd.bot, false);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

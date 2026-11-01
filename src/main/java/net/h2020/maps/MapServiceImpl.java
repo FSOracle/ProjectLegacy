@@ -9,6 +9,7 @@ import net.h2020.maps.gen.LobbyGenerator;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -18,6 +19,15 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -46,7 +56,8 @@ public final class MapServiceImpl implements MapService {
     private final Map<String, StoredMapTemplate> templates = new LinkedHashMap<String, StoredMapTemplate>();
     /** instance world name (lower case) -> template */
     final Map<String, StoredMapTemplate> instances = new ConcurrentHashMap<String, StoredMapTemplate>();
-    private World mainLobby, bedwarsLobby, skywarsLobby;
+    final Map<String, World> ownedWorlds = new ConcurrentHashMap<String, World>();
+    private World mainLobby, bedwarsLobby, skywarsLobby, duelsLobby;
     private volatile boolean ready;
 
     public MapServiceImpl(JavaPlugin plugin) {
@@ -83,6 +94,7 @@ public final class MapServiceImpl implements MapService {
             }
         }
         instances.clear();
+        ownedWorlds.clear();
     }
 
     public boolean isReady() { return ready; }
@@ -92,18 +104,15 @@ public final class MapServiceImpl implements MapService {
         return s != null ? s : new YamlConfiguration();
     }
 
-    /** Remove instance folders and half-finished generation worlds left by a crash. */
+    /** A name or an unloaded world is not proof of ownership. Preserve all old data. */
     private void cleanupStale() {
         File inst = new File(Worlds.container(), Worlds.INSTANCE_DIR);
-        if (inst.isDirectory()) {
-            File[] files = inst.listFiles();
-            if (files != null) for (File f : files) {
-                if (Bukkit.getWorld(Worlds.INSTANCE_DIR + "/" + f.getName()) == null) Worlds.delete(f);
-            }
-        }
+        if (java.nio.file.Files.exists(inst.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            log.warning("[maps] retaining existing instances without ownership proof: " + inst + "; monitor disk use");
         File[] roots = Worlds.container().listFiles();
         if (roots != null) for (File f : roots)
-            if (f.isDirectory() && f.getName().startsWith(Worlds.GEN_PREFIX) && Bukkit.getWorld(f.getName()) == null) Worlds.delete(f);
+            if (f.getName().startsWith(Worlds.GEN_PREFIX))
+                log.warning("[maps] retaining generation path without ownership proof: " + f);
     }
 
     // ============================================================================================ templates
@@ -123,9 +132,7 @@ public final class MapServiceImpl implements MapService {
             try {
                 StoredMapTemplate t = MapFiles.read(this, dir);
                 if (t.generated && (t.generatorVersion < DefaultMaps.VERSION || regenerate) && DefaultMaps.byName(t.name) != null) {
-                    log.info("[maps] regenerating outdated generated map " + t.name);
-                    Worlds.delete(dir);
-                    continue;
+                    log.warning("[maps] retaining outdated generated map without ownership proof: " + dir);
                 }
                 if (!new File(t.worldFolder(), "level.dat").isFile()) {
                     log.warning("[maps] " + dir.getName() + ": missing world/level.dat - skipped");
@@ -177,14 +184,14 @@ public final class MapServiceImpl implements MapService {
         log.info("[maps] generating " + d.family + " map '" + d.name + "' (" + d.teams + " teams, " + d.theme + ")...");
         GeneratedMap gm = d.generate();
         File target = new File(mapsDir, d.folder());
-        Worlds.delete(target);
-        if (!target.mkdirs() && !target.isDirectory()) throw new IOException("cannot create " + target);
         String scratch = Worlds.GEN_PREFIX + d.folder();
         File scratchDir = new File(Worlds.container(), scratch);
-        Worlds.delete(scratchDir);
+        if (Bukkit.getWorld(scratch) != null || java.nio.file.Files.exists(scratchDir.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("generation world already exists; preserving " + scratchDir);
+        java.nio.file.Files.createDirectory(target.toPath()); // never reuse or replace a pre-existing target
         writeWorld(gm, scratch);
         Worlds.copyWorld(scratchDir, new File(target, "world"));
-        Worlds.delete(scratchDir);
+        log.warning("[maps] retaining generated scratch world " + scratchDir + "; monitor disk use");
         MapFiles.write(gm, target, DefaultMaps.VERSION, d.seed());
         log.info("[maps] generated '" + d.name + "' (" + gm.canvas.size() + " blocks) in " + (System.currentTimeMillis() - t0) + "ms");
         return MapFiles.read(this, target);
@@ -211,6 +218,7 @@ public final class MapServiceImpl implements MapService {
         mainLobby = lobby(cfg.getString("main-lobby-world", ""), LobbyGenerator.MAIN, 0);
         bedwarsLobby = lobby(cfg.getString("bedwars-lobby-world", ""), LobbyGenerator.BEDWARS, 1);
         skywarsLobby = lobby(cfg.getString("skywars-lobby-world", ""), LobbyGenerator.SKYWARS, 2);
+        duelsLobby = lobby("", LobbyGenerator.DUELS, 3);
     }
 
     private World lobby(String override, String name, int kind) {
@@ -222,14 +230,24 @@ public final class MapServiceImpl implements MapService {
                 log.warning("[maps] configured lobby world '" + override + "' not found, using generated " + name);
             }
             World loaded = Bukkit.getWorld(name);
-            if (loaded != null) return loaded;
             File dir = new File(Worlds.container(), name);
             File marker = new File(dir, "h2020-lobby.yml");
+            if (kind == 3 && java.nio.file.Files.exists(dir.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                if (java.nio.file.Files.isSymbolicLink(dir.toPath()) ||
+                        !java.nio.file.Files.isDirectory(dir.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) ||
+                        !java.nio.file.Files.isRegularFile(marker.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) ||
+                        !java.nio.file.Files.isRegularFile(new File(dir, "level.dat").toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) ||
+                        !"h2020-duels-lobby-v1".equals(YamlConfiguration.loadConfiguration(marker).getString("owner")) ||
+                        YamlConfiguration.loadConfiguration(marker).getInt("version", 0) != LOBBY_VERSION)
+                    throw new IOException("Duels lobby is not owned; preserving " + dir);
+            }
+            if (loaded != null) return loaded;
             boolean fresh = !marker.isFile() || YamlConfiguration.loadConfiguration(marker).getInt("version", 0) < LOBBY_VERSION;
             GeneratedMap gm = null;
             if (fresh) {
                 log.info("[maps] generating lobby world " + name + "...");
-                Worlds.delete(dir);
+                if (java.nio.file.Files.exists(dir.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                    throw new IOException("lobby path exists without a current marker; preserving " + dir);
                 gm = kind == 0 ? LobbyGenerator.main(31L) : kind == 1 ? LobbyGenerator.bedwars(32L) : LobbyGenerator.skywars(33L);
             }
             org.bukkit.block.Biome biome = gm != null ? gm.biome : org.bukkit.block.Biome.PLAINS;
@@ -246,6 +264,7 @@ public final class MapServiceImpl implements MapService {
                 Worlds.saveFully(w, log);
                 YamlConfiguration y = new YamlConfiguration();
                 y.set("version", LOBBY_VERSION);
+                if (kind == 3) y.set("owner", "h2020-duels-lobby-v1");
                 y.set("biome", gm.biome.name());
                 y.set("generated", System.currentTimeMillis());
                 y.save(marker);
@@ -260,34 +279,95 @@ public final class MapServiceImpl implements MapService {
         }
     }
 
-    /** plugins/Hypixel2020/lobby-npcs.yml: NPC pad positions for core (x,y,z,yaw per key). */
+    /** Merge defaults without ever truncating an existing configuration. */
     private void writeLobbyNpcs() {
-        File f = new File(plugin.getDataFolder(), "lobby-npcs.yml");
-        if (f.isFile() && YamlConfiguration.loadConfiguration(f).getInt("version", 0) >= LOBBY_VERSION) return;
-        YamlConfiguration y = new YamlConfiguration();
-        y.options().header("NPC pads of the generated hubs (written by the maps module). Positions are feet\n"
-                + "positions (block centre); yaw faces the spawn at (0.5, 71, 0.5). Top-level bedwars/skywars are the\n"
-                + "main lobby game NPCs; *_lobby sections hold the per-mode NPCs of the family lobbies.");
-        y.set("version", LOBBY_VERSION);
-        y.set("world", LobbyGenerator.MAIN);
-        y.set("spawn", pos(new double[]{0.5, LobbyGenerator.PY + 1, 0.5, 180}));
-        for (Map.Entry<String, double[]> e : LobbyGenerator.npcPads(LobbyGenerator.MAIN).entrySet()) {
-            String key = e.getKey().equals("bedwars") || e.getKey().equals("skywars") ? e.getKey() : "extra." + e.getKey();
-            y.set(key, pos(e.getValue()));
-        }
-        section(y, "bedwars_lobby", LobbyGenerator.BEDWARS);
-        section(y, "skywars_lobby", LobbyGenerator.SKYWARS);
+        Path path = new File(plugin.getDataFolder(), "lobby-npcs.yml").toPath();
+        Path temp = null;
         try {
-            y.save(f);
-        } catch (IOException e) {
-            log.warning("[maps] could not write " + f + ": " + e.getMessage());
+            boolean exists = true;
+            try {
+                BasicFileAttributes a = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                if (!a.isRegularFile()) throw new IOException("not a regular file (symlinks refused)");
+            } catch (NoSuchFileException e) { exists = false; }
+            YamlConfiguration y = new YamlConfiguration();
+            if (exists) {
+                try (java.io.Reader r = new java.io.InputStreamReader(
+                        Files.newInputStream(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS),
+                        StandardCharsets.UTF_8.newDecoder())) {
+                    y.load(r); // strict: unlike loadConfiguration, parsing errors are propagated
+                }
+            }
+            String before = y.saveToString();
+            for (String parent : new String[]{"extra", "bedwars_lobby", "skywars_lobby", "duels_lobby"})
+                if (y.contains(parent) && !y.isConfigurationSection(parent))
+                    throw new IOException("configuration collision at " + parent + "; preserving original");
+            if (!y.contains("version") || y.getInt("version") < LOBBY_VERSION) y.set("version", LOBBY_VERSION);
+            if (!y.contains("world")) y.set("world", LobbyGenerator.MAIN);
+            if (LobbyGenerator.MAIN.equals(y.getString("world"))) {
+                if (!y.contains("spawn")) y.set("spawn", pos(new double[]{0.5, LobbyGenerator.PY + 1, 0.5, 180}));
+                if (!y.contains("duels") && validLegacyPad(y.getConfigurationSection("extra.duels")))
+                    y.set("duels", y.getConfigurationSection("extra.duels").getValues(true));
+                for (Map.Entry<String, double[]> e : LobbyGenerator.npcPads(LobbyGenerator.MAIN).entrySet()) {
+                    String name = e.getKey();
+                    String key = name.equals("bedwars") || name.equals("skywars") || name.equals("duels") || name.equals("pit") ? name : "extra." + name;
+                    if (!y.contains(key)) y.set(key, pos(e.getValue()));
+                }
+            }
+            section(y, "bedwars_lobby", LobbyGenerator.BEDWARS);
+            section(y, "skywars_lobby", LobbyGenerator.SKYWARS);
+            section(y, "duels_lobby", LobbyGenerator.DUELS);
+            String after = y.saveToString();
+            if (exists && before.equals(after)) return;
+            y.options().header("NPC pads of the generated hubs; configured positions are preserved.");
+            byte[] bytes = y.saveToString().getBytes(StandardCharsets.UTF_8);
+            temp = Files.createTempFile(path.getParent(), ".lobby-npcs-", ".tmp");
+            try (FileChannel out = FileChannel.open(temp, StandardOpenOption.WRITE)) {
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) out.write(buffer);
+                if (exists) {
+                    // Fail closed if the replacement cannot retain the original inode's access metadata.
+                    java.nio.file.attribute.PosixFileAttributes original = Files.readAttributes(
+                            path, java.nio.file.attribute.PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                    int mode = ((Number) Files.getAttribute(path, "unix:mode", LinkOption.NOFOLLOW_LINKS)).intValue() & 07777;
+                    java.nio.file.attribute.PosixFileAttributeView view = Files.getFileAttributeView(
+                            temp, java.nio.file.attribute.PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+                    if (view == null) throw new IOException("POSIX metadata unavailable");
+                    view.setOwner(original.owner());
+                    view.setGroup(original.group());
+                    Files.setAttribute(temp, "unix:mode", mode, LinkOption.NOFOLLOW_LINKS);
+                    java.nio.file.attribute.PosixFileAttributes copy = view.readAttributes();
+                    int copiedMode = ((Number) Files.getAttribute(temp, "unix:mode", LinkOption.NOFOLLOW_LINKS)).intValue() & 07777;
+                    if (!original.owner().equals(copy.owner()) || !original.group().equals(copy.group()) || mode != copiedMode)
+                        throw new IOException("NPC configuration metadata could not be preserved");
+                }
+                out.force(true);
+            }
+            Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            temp = null;
+        } catch (IOException | InvalidConfigurationException | RuntimeException e) {
+            log.log(Level.WARNING, "[maps] lobby NPC configuration not saved; inspect " + path, e);
+        } finally {
+            if (temp != null) try { Files.deleteIfExists(temp); }
+            catch (IOException e) { log.log(Level.WARNING, "[maps] could not remove temporary NPC config " + temp, e); }
         }
     }
 
+    private static boolean validLegacyPad(ConfigurationSection p) {
+        if (p == null) return false;
+        for (String key : new String[]{"x", "y", "z", "yaw"}) {
+            Object v = p.get(key);
+            if (v == null && key.equals("yaw")) continue;
+            if (!(v instanceof Number) || !Double.isFinite(((Number) v).doubleValue())) return false;
+        }
+        return true;
+    }
+
     private static void section(YamlConfiguration y, String key, String world) {
-        y.set(key + ".world", world);
-        y.set(key + ".spawn", pos(new double[]{0.5, LobbyGenerator.PY + 1, 0.5, 180}));
-        for (Map.Entry<String, double[]> e : LobbyGenerator.npcPads(world).entrySet()) y.set(key + "." + e.getKey(), pos(e.getValue()));
+        if (!y.contains(key + ".world")) y.set(key + ".world", world);
+        if (!world.equals(y.getString(key + ".world"))) return;
+        if (!y.contains(key + ".spawn")) y.set(key + ".spawn", pos(new double[]{0.5, LobbyGenerator.PY + 1, 0.5, 180}));
+        for (Map.Entry<String, double[]> e : LobbyGenerator.npcPads(world).entrySet())
+            if (!y.contains(key + "." + e.getKey())) y.set(key + "." + e.getKey(), pos(e.getValue()));
     }
 
     private static Map<String, Object> pos(double[] p) {
@@ -361,7 +441,7 @@ public final class MapServiceImpl implements MapService {
     @Override
     public World familyLobby(GameFamily family) {
         if (family == null) return mainLobby();
-        World w = family == GameFamily.BEDWARS ? bedwarsLobby : skywarsLobby;
+        World w = family == GameFamily.BEDWARS ? bedwarsLobby : family == GameFamily.DUELS ? duelsLobby : skywarsLobby;
         if (w != null && Bukkit.getWorld(w.getUID()) == null) w = null;
         return w != null ? w : mainLobby();
     }

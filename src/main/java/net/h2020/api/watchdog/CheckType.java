@@ -2,6 +2,7 @@ package net.h2020.api.watchdog;
 
 /** Check catalogue, modelled on NoCheatPlus 3.x (group_check). */
 public enum CheckType {
+    NCP_UNMAPPED(Group.NET),
     // moving (watchdog-movement builder)
     MOVING_SURVIVALFLY(Group.MOVING), MOVING_CREATIVEFLY(Group.MOVING), MOVING_NOFALL(Group.MOVING),
     MOVING_MOREPACKETS(Group.MOVING), MOVING_PASSABLE(Group.MOVING), MOVING_VELOCITY(Group.MOVING),

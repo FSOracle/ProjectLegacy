@@ -1,4 +1,5 @@
 *.bat text eol=crlf
 *.mca binary
 *.dat binary
+*.jar binary
 *.sh text eol=lf

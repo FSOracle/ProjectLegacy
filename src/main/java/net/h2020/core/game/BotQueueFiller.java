@@ -61,6 +61,9 @@ public final class BotQueueFiller implements Runnable {
 
     private int pending(Game g) { Integer i = pending.get(g.id()); return i == null ? 0 : i; }
 
+    /** Bots spawning into this game that have not been added yet. */
+    public int pendingFor(Game g) { return pending(g); }
+
     @Override
     public void run() {
         tick += PERIOD_TICKS;
@@ -69,6 +72,7 @@ public final class BotQueueFiller implements Runnable {
         long now = System.currentTimeMillis();
         if (config.botFill) {
             for (Game g : manager.games()) {
+                if (g.type().family == net.h2020.api.game.GameFamily.DUELS) continue; // Duels fill their own bot opponent
                 GameState s = g.state();
                 if (s != GameState.WAITING && s != GameState.STARTING) continue;
                 int size = g.players().size() + pending(g), max = g.type().maxPlayers();
@@ -104,6 +108,7 @@ public final class BotQueueFiller implements Runnable {
 
     /** Log a fresh bot into the game's waiting spawn and add it next tick. */
     public Bot spawnInto(BotService bs, final Game g) {
+        if (g.type().family == net.h2020.api.game.GameFamily.DUELS) return null;
         ThreadLocalRandom r = ThreadLocalRandom.current();
         BotProfile profile;
         try {
@@ -197,7 +202,7 @@ public final class BotQueueFiller implements Runnable {
         if (botOnly >= config.backgroundGames) return;
         List<GameType> types = config.backgroundTypes;
         GameType type = types.get(ThreadLocalRandom.current().nextInt(types.size()));
-        if (!manager.hasProvider(type.family)) return;
+        if (type.family == net.h2020.api.game.GameFamily.DUELS || !manager.hasProvider(type.family)) return; // no bot-only Duels
         Game g = manager.createRandom(type);
         if (g != null) plugin.getLogger().info("Background game " + g.id() + " (" + type.id() + ") created");
     }

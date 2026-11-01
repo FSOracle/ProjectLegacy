@@ -1,6 +1,8 @@
 package net.h2020.watchdog;
 
 import net.h2020.api.H2020;
+import net.h2020.watchdog.ncp.NcpBridge;
+import net.h2020.watchdog.ncp.OrderedMainDispatcher;
 import net.h2020.api.Module;
 import net.h2020.api.packet.PacketHub;
 import net.h2020.api.watchdog.WatchdogService;
@@ -22,7 +24,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class WatchdogModule implements Module {
     private WatchdogServiceImpl service;
-    private PacketRouter router;
+    private NcpBridge bridge;
 
     @Override public String name() { return "watchdog"; }
 
@@ -30,16 +32,21 @@ public final class WatchdogModule implements Module {
     public void enable(JavaPlugin plugin) {
         WatchdogConfig config = WatchdogConfig.load(plugin);
         service = new WatchdogServiceImpl(plugin, config);
-        service.start();
-        H2020.register(WatchdogService.class, service);
-
-        router = new PacketRouter(service);
-        // Order matters: block place/break consume their arm swings before fight sees them.
-        BlockPlaceChecks.register(service, router, plugin);
-        BlockBreakChecks.register(service, router, plugin);
-        FightChecks.register(service, router, plugin);
-        InventoryChecks.register(service, router, plugin);
-        PacketHub.register(router);
+        final org.bukkit.scheduler.BukkitScheduler scheduler = org.bukkit.Bukkit.getScheduler();
+        bridge = new NcpBridge(plugin.getClass().getClassLoader(), (player, check, total, added, nativeName) ->
+                service.ncpFlag((org.bukkit.entity.Player) player, check, total, added, nativeName),
+                new OrderedMainDispatcher(task -> scheduler.runTask(plugin, task)));
+        service.setNcpInvalidate(bridge::invalidate);
+        try {
+            service.start();
+            bridge.register();
+            H2020.register(WatchdogService.class, service);
+        } catch (Throwable failure) {
+            try { bridge.unregister(); } catch (Throwable cleanup) { failure.addSuppressed(cleanup); }
+            try { service.shutdown(); } catch (Throwable cleanup) { failure.addSuppressed(cleanup); }
+            H2020.unregister(WatchdogService.class, service);
+            throw new IllegalStateException("Cannot start Watchdog/NCP integration", failure);
+        }
 
         WatchdogCommand wd = new WatchdogCommand(service);
         PluginCommand c = plugin.getCommand("wd");
@@ -48,13 +55,19 @@ public final class WatchdogModule implements Module {
         PluginCommand r = plugin.getCommand("report");
         if (r != null) { r.setExecutor(rc); r.setTabCompleter(rc); }
 
-        MovingChecks.registerAll(service, plugin);
     }
 
     @Override
     public void disable() {
-        try { MovingChecks.shutdown(); } catch (Throwable ignored) {}
-        if (router != null) PacketHub.unregister(router);
-        if (service != null) service.shutdown(); // unregisters only this module's listeners/tasks
+        try {
+            if (bridge != null) bridge.unregister();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Cannot unregister NCP hook", e);
+        } finally {
+            if (service != null) {
+                H2020.unregister(WatchdogService.class, service);
+                service.shutdown();
+            }
+        }
     }
 }

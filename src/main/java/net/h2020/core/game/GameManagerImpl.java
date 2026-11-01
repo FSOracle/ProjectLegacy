@@ -9,6 +9,7 @@ import net.h2020.api.game.GameManager;
 import net.h2020.api.game.GameProvider;
 import net.h2020.api.game.GameState;
 import net.h2020.api.game.GameType;
+import net.h2020.api.game.HumanPriorityGame;
 import net.h2020.api.game.events.GameKillEvent;
 import net.h2020.api.game.events.GameStateChangeEvent;
 import net.h2020.api.map.MapService;
@@ -86,13 +87,13 @@ public final class GameManagerImpl implements GameManager, Listener {
     @Override
     public Game create(GameType type, MapTemplate map) {
         GameProvider provider = providers.get(type.family);
-        if (provider == null || map == null) return null;
+        if (provider == null || (map == null && type.family != GameFamily.DUELS)) return null; // Duels generate their own arenas
         String id = nextId(type.family);
         Game g;
         try {
             g = provider.create(type, map, id);
         } catch (Throwable t) {
-            plugin.getLogger().log(Level.SEVERE, "Could not create " + type.id() + " on " + map.name(), t);
+            plugin.getLogger().log(Level.SEVERE, "Could not create " + type.id() + " on " + (map == null ? "generated arena" : map.name()), t);
             usedIds.remove(id);
             return null;
         }
@@ -103,6 +104,7 @@ public final class GameManagerImpl implements GameManager, Listener {
 
     /** New game of this type on a random usable template, or null when none exist. */
     public Game createRandom(GameType type) {
+        if (type.family == GameFamily.DUELS) return create(type, null); // Duels: generated arena, no template
         MapService ms = H2020.find(MapService.class);
         if (ms == null) return null;
         List<MapTemplate> maps;
@@ -195,6 +197,20 @@ public final class GameManagerImpl implements GameManager, Listener {
         return n;
     }
 
+    // ---- party queue ----
+
+    private final PartyQueue partyQueue = new PartyQueue(this);
+
+    /** Human entry points (/play, menus, NPCs): a party leader queues the whole party, members are refused. */
+    public Game queueParty(Player player, GameType type) {
+        if (player == null || type == null || !player.isOnline()) return null;
+        return partyQueue.queue(player, type);
+    }
+
+    int pendingBots(Game g) { return filler == null ? 0 : filler.pendingFor(g); }
+
+    LobbyHooks lobbyHooks() { return lobby; }
+
     // ---- queue ----
 
     @Override
@@ -206,6 +222,7 @@ public final class GameManagerImpl implements GameManager, Listener {
             leaveGame(player, current);
         }
         boolean human = !CoreUtil.isBot(player);
+        if (!human && type.family == GameFamily.DUELS) return null; // Duels bots only via the Duels matcher
         if (!providers.containsKey(type.family)) {
             if (human) player.sendMessage(ChatColor.RED + "That game is currently unavailable!");
             return null;
@@ -217,6 +234,13 @@ public final class GameManagerImpl implements GameManager, Listener {
             // bots only join games that already exist: a requeueing bot must not spin up a new bot-only game
             // (that would keep games running forever with nobody watching; background-games covers that case)
             if (g == null && !human) break;
+            // Prefer an already waiting human over a bot while the match has not begun.
+            if (g == null && human && type.family == GameFamily.DUELS) {
+                for (Game candidate : new ArrayList<>(games.values())) {
+                    if (candidate.type() != type || tried.contains(candidate.id()) || !(candidate instanceof HumanPriorityGame)) continue;
+                    if (((HumanPriorityGame) candidate).releaseBotForHuman()) { g = candidate; break; }
+                }
+            }
             if (g == null) g = createRandom(type);
             if (g == null) break;
             tried.add(g.id());
@@ -261,6 +285,14 @@ public final class GameManagerImpl implements GameManager, Listener {
     @Override
     public void sendToLobby(Player player, GameFamily family) {
         if (player == null || !player.isOnline()) return;
+        if (family == GameFamily.DUELS) {
+            MapService maps = H2020.find(MapService.class);
+            World destination = maps == null ? null : maps.familyLobby(GameFamily.DUELS);
+            if (destination == null || destination.equals(maps.mainLobby())) {
+                player.sendMessage(ChatColor.RED + "Duels lobby is unavailable. Please try again later.");
+                return;
+            }
+        }
         if (!routing.add(player.getUniqueId())) return; // re-entrant call from a game's removePlayer
         try {
             Game g = gameOf(player);
@@ -311,9 +343,13 @@ public final class GameManagerImpl implements GameManager, Listener {
         if (game == null) return;
         games.remove(game.id());
         if (game.world() != null) byWorld.remove(game.world().getName());
-        Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
-            @Override public void run() { usedIds.remove(game.id()); }
-        }, 20L * 60 * 5);
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+                @Override public void run() { usedIds.remove(game.id()); }
+            }, 20L * 60 * 5);
+        } else {
+            usedIds.remove(game.id());
+        }
         if (filler != null) filler.forget(game);
         Set<UUID> bots = botMembers.remove(game.id());
         Set<UUID> involved = new HashSet<>();
@@ -330,7 +366,8 @@ public final class GameManagerImpl implements GameManager, Listener {
             if (other != null && other != game) continue; // already moved on
             Bot bot = bs != null ? bs.bot(p) : null;
             if (bot != null || CoreUtil.isBot(p)) {
-                churnBot(p, bot, game.type(), inWorld);
+                if (plugin.isEnabled()) churnBot(p, bot, game.type(), inWorld);
+                else removeBot(p, bot);
             } else if (inWorld) {
                 sendToLobby(p, game.type().family);
             }

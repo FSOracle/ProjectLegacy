@@ -9,7 +9,11 @@ public enum GameType {
     SKYWARS_SOLO_NORMAL(GameFamily.SKYWARS, "solo_normal", "Solo Normal", 1, 12),
     SKYWARS_SOLO_INSANE(GameFamily.SKYWARS, "solo_insane", "Solo Insane", 1, 12),
     SKYWARS_TEAMS_NORMAL(GameFamily.SKYWARS, "teams_normal", "Teams Normal", 2, 8),
-    SKYWARS_TEAMS_INSANE(GameFamily.SKYWARS, "teams_insane", "Teams Insane", 2, 8);
+    SKYWARS_TEAMS_INSANE(GameFamily.SKYWARS, "teams_insane", "Teams Insane", 2, 8),
+    DUELS_CLASSIC(GameFamily.DUELS, "duels_classic_duel", "Classic Duel", 1, 2),
+    DUELS_BOXING(GameFamily.DUELS, "duels_boxing_duel", "Boxing Duel", 1, 2),
+    DUELS_NODEBUFF(GameFamily.DUELS, "duels_potion_duel", "NoDebuff Duel", 1, 2),
+    DUELS_BRIDGE(GameFamily.DUELS, "duels_bridge_duel", "Bridge Duel", 1, 2);
 
     public final GameFamily family;
     private final String id;

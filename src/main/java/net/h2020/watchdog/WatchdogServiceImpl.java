@@ -4,6 +4,7 @@ import net.h2020.api.watchdog.CheckType;
 import net.h2020.api.watchdog.WatchdogFlagEvent;
 import net.h2020.api.watchdog.WatchdogService;
 import net.h2020.watchdog.alerts.AlertManager;
+import net.h2020.watchdog.ncp.NcpExemptions;
 import net.h2020.watchdog.alerts.WatchdogLog;
 import net.h2020.watchdog.framework.ActionList;
 import net.h2020.watchdog.framework.CheckSettings;
@@ -41,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class WatchdogServiceImpl implements WatchdogService, Listener {
     private final JavaPlugin plugin;
     private final WatchdogConfig config;
+    private final NcpExemptions ncpExemptions;
     private final Map<UUID, PlayerData> players = new ConcurrentHashMap<UUID, PlayerData>();
     /** target -> viewers receiving live debug output */
     private final Map<UUID, Set<UUID>> debugViewers = new ConcurrentHashMap<UUID, Set<UUID>>();
@@ -57,6 +59,7 @@ public final class WatchdogServiceImpl implements WatchdogService, Listener {
     public WatchdogServiceImpl(JavaPlugin plugin, WatchdogConfig config) {
         this.plugin = plugin;
         this.config = config;
+        this.ncpExemptions = new NcpExemptions(plugin);
         this.alerts = new AlertManager(plugin, config.consoleAlerts, config.staffAlerts);
         this.log = new WatchdogLog(plugin.getDataFolder());
         this.bans = new BanManager(this);
@@ -74,10 +77,12 @@ public final class WatchdogServiceImpl implements WatchdogService, Listener {
         registerListener(this);
         registerListener(bans);
         announcer.start();
+        plugin.getLogger().warning("NCP mode: report violation boost is unsupported; reports tag alerts only. Humans retain NCP cancellations/setbacks, not passive observation.");
         log.log("START", "Watchdog enabled (ban-humans=" + config.banHumans + ", exempt-admins=" + config.exemptAdmins + ")");
     }
 
     public void shutdown() {
+        ncpExemptions.shutdown();
         for (BukkitTask t : tasks) t.cancel();
         tasks.clear();
         for (Listener l : listeners) HandlerList.unregisterAll(l);
@@ -110,6 +115,7 @@ public final class WatchdogServiceImpl implements WatchdogService, Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent e) {
         Player p = e.getPlayer();
+        ncpExemptions.releasePlayer(p.getUniqueId());
         players.remove(p.getUniqueId());
         tracker.remove(p);
         debugViewers.remove(p.getUniqueId());
@@ -146,24 +152,76 @@ public final class WatchdogServiceImpl implements WatchdogService, Listener {
         if (d != null) d.resetViolations();
     }
 
+    private java.util.function.Consumer<UUID> ncpInvalidate = id -> {};
+    public void setNcpInvalidate(java.util.function.Consumer<UUID> c) { ncpInvalidate = c == null ? id -> {} : c; }
+
+    /**
+     * /wd reset: same data removal as NCP's own "/ncp removeplayer <name>" (violation history, action
+     * execution history and check data, including moving setbacks), then Watchdog data and pending ban.
+     * Main thread only. Returns true when NCP reported something removed.
+     */
+    public boolean resetAll(Player p) {
+        if (!Bukkit.isPrimaryThread()) throw new IllegalStateException("reset requires main thread");
+        final fr.neatmonster.nocheatplus.checks.CheckType all = fr.neatmonster.nocheatplus.checks.CheckType.ALL;
+        ncpInvalidate.accept(p.getUniqueId());
+        boolean found = fr.neatmonster.nocheatplus.checks.ViolationHistory.removeHistory(p.getName()) != null;
+        found |= fr.neatmonster.nocheatplus.players.DataManager.removeExecutionHistory(all, p.getName());
+        found |= fr.neatmonster.nocheatplus.players.DataManager.removeData(p.getName(), all);
+        forget(p.getUniqueId());
+        bans().cancelPending(p.getUniqueId());
+        log.log("RESET", p.getName() + " NCP+Watchdog violation data cleared" + (found ? "" : " (NCP had no data)"));
+        return found;
+    }
+
+    /** Main-thread handling of automatic NCP requests, distinct from admin commands. */
+    public void ncpDirectRequest(Player player, fr.neatmonster.nocheatplus.policy.AutomaticActionPolicy.Reason reason) {
+        if (!Bukkit.isPrimaryThread()) throw new IllegalStateException("direct request requires main thread");
+        if (player == null || reason == null) return;
+        boolean bot = Util.isBot(player);
+        log.log("NCP-DIRECT", player.getName() + " " + reason.name() + (bot ? " [bot]" : " [human suppressed]"));
+        // Login-frequency/relog denials are not equivalent to a cheating ban. Unknown identities fail closed.
+        if (bot && player.isOnline() && (reason == fr.neatmonster.nocheatplus.policy.AutomaticActionPolicy.Reason.HOVER_KICK
+                || reason == fr.neatmonster.nocheatplus.policy.AutomaticActionPolicy.Reason.ILLEGAL_MOVE_KICK)) {
+            player.kickPlayer("NoCheatPlus: invalid movement");
+        }
+    }
+
     // ------------------------------------------------------------------ WatchdogService
 
     @Override
     public boolean flag(Player p, CheckType check, double addVl, String details) {
+        return flagInternal(p, check, addVl, details, null);
+    }
+
+    /** Consume NCP's authoritative total once; never add it to a second accumulator. */
+    public void ncpFlag(Player p, CheckType check, double total, double added, String nativeName) {
+        if (p == null || !Double.isFinite(total) || !Double.isFinite(added)) return;
+        if (check == CheckType.NCP_UNMAPPED) {
+            String detail = "NCP " + nativeName + " (unmapped)";
+            fireFlagEvent(p, check, total, detail);
+            log.log("FLAG", p.getName() + " failed " + detail + " (vl " + Util.fmt1(total) + ", +" + Util.fmt(added) + ")");
+            if (net.h2020.watchdog.ncp.PunishmentPolicy.allowUnmapped(total, config.ncpUnmappedBanThreshold, Util.isBot(p), config.banHumans)
+                    && !bans.isPending(p.getUniqueId())) bans.schedule(p, "NCP_" + nativeName);
+            return;
+        }
+        flagInternal(p, check, added, "NCP " + nativeName, total);
+    }
+
+    private boolean flagInternal(Player p, CheckType check, double addVl, String details, Double ncpTotal) {
         if (p == null || check == null) return false;
         CheckSettings cs = config.settings(check);
         if (!cs.enabled || isExempt(p, check)) return false;
         PlayerData d = data(p);
         long now = System.currentTimeMillis();
         boolean reported = d.reportedUntil > now;
-        if (reported && addVl > 0) addVl *= config.reportBoost;
+        if (ncpTotal == null && reported && addVl > 0) addVl *= config.reportBoost;
 
         ViolationData v = d.vl(check);
         boolean cancel = false, doLog = false, doAlert = false, doBan = false, doKick = false;
         double vl;
         synchronized (v) {
-            v.decay(now, cs);
-            v.add(addVl);
+            if (ncpTotal == null) { v.decay(now, cs); v.add(addVl); }
+            else v.set(ncpTotal, now);
             vl = v.vl();
             v.lastFlag = now;
             v.totalFlags++;
@@ -189,8 +247,9 @@ public final class WatchdogServiceImpl implements WatchdogService, Listener {
         if (doAlert) alerts.flagAlert(p.getName(), check, vl, det, reported);
         debug(p, check, ChatColor.RED + "FLAG +" + Util.fmt(addVl) + " -> vl " + Util.fmt1(vl) + ChatColor.GRAY + " " + det
                 + (cancel ? ChatColor.RED + " [cancel]" : ""));
-        if (doBan && !bans.isPending(p.getUniqueId())) bans.schedule(p, check.name());
-        if (doKick) {
+        boolean canPunish = net.h2020.watchdog.ncp.PunishmentPolicy.allowAutomatic(Util.isBot(p), config.banHumans);
+        if (doBan && canPunish && !bans.isPending(p.getUniqueId())) bans.schedule(p, check.name());
+        if (doKick && canPunish && !doBan) {
             final Player fp = p;
             // Always on the next tick: flag() may run inside the player's own packet handling (PlayerMoveEvent, a
             // bot's packet flush), and disconnecting mid-handler leaves the connection half processed.
@@ -223,19 +282,36 @@ public final class WatchdogServiceImpl implements WatchdogService, Listener {
 
     @Override
     public void exempt(Player p, CheckType check, long durationMs) {
-        if (p == null || check == null) return;
-        PlayerData d = data(p);
-        long until = System.currentTimeMillis() + durationMs;
-        Long cur = d.exemptions().get(check);
-        if (cur == null || cur < until) d.exemptions().put(check, until);
+        if (p == null || check == null || durationMs <= 0) return;
+        if (!Bukkit.isPrimaryThread()) { runMain(() -> exempt(p, check, durationMs)); return; }
+        ncpExemptions.exempt(p, check, durationMs);
+        markExempt(p, check, durationMs);
     }
 
-    /** Exempt from every check of a group. */
+    private void markExempt(Player p, CheckType check, long durationMs) {
+        PlayerData d = data(p);
+        long now = System.currentTimeMillis();
+        long until = durationMs > Long.MAX_VALUE - now ? Long.MAX_VALUE : now + durationMs;
+        d.exemptions().merge(check, until, Math::max);
+    }
+
+    @Override
     public void exemptGroup(Player p, CheckType.Group group, long durationMs) {
-        for (CheckType t : CheckType.values()) if (t.group == group) exempt(p, t, durationMs);
+        if (p == null || group == null || durationMs <= 0) return;
+        if (!Bukkit.isPrimaryThread()) { runMain(() -> exemptGroup(p, group, durationMs)); return; }
+        ncpExemptions.exempt(p, fr.neatmonster.nocheatplus.checks.CheckType.valueOf(group.name()), durationMs);
+        for (CheckType t : CheckType.values()) if (t.group == group) markExempt(p, t, durationMs);
+    }
+
+    public void exemptAll(Player p, long durationMs) {
+        if (p == null || durationMs <= 0) return;
+        if (!Bukkit.isPrimaryThread()) { runMain(() -> exemptAll(p, durationMs)); return; }
+        ncpExemptions.exempt(p, fr.neatmonster.nocheatplus.checks.CheckType.ALL, durationMs);
+        for (CheckType t : CheckType.values()) markExempt(p, t, durationMs);
     }
 
     public void unexempt(Player p) {
+        ncpExemptions.releasePlayer(p.getUniqueId());
         PlayerData d = players.get(p.getUniqueId());
         if (d != null) d.exemptions().clear();
     }

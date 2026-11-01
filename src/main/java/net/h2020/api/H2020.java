@@ -17,6 +17,8 @@ public final class H2020 {
 
     public static <T> void register(Class<T> type, T impl) { SERVICES.put(type, impl); }
 
+    public static <T> void unregister(Class<T> type, T impl) { SERVICES.remove(type, impl); }
+
     /** @throws IllegalStateException if no module registered the service */
     public static <T> T get(Class<T> type) {
         Object o = SERVICES.get(type);
