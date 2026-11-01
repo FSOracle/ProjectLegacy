@@ -197,7 +197,7 @@ public final class LobbyMenus {
         int toGo = (int) Math.round(need * (1 - d.levelProgress));
         m.set(13, new ItemBuilder(Material.SKULL_ITEM, 1, 3).skullOwner(p.getName())
                 .name(ChatColor.GREEN + "Character Information")
-                .lore(ChatColor.GRAY + "Rank: " + HypixelFormat.rankName(d.rank, d.plusColor),
+                .lore(ChatColor.GRAY + "Rank: " + d.rankName(),
                         ChatColor.GRAY + "Hypixel Level: " + ChatColor.GOLD + d.networkLevel,
                         ChatColor.GRAY + "Experience until next Level: " + ChatColor.GOLD + HypixelFormat.commas(toGo),
                         ChatColor.GRAY + "Achievement Points: " + ChatColor.YELLOW + HypixelFormat.commas(d.achievementPoints),

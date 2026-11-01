@@ -8,11 +8,13 @@ import net.h2020.api.game.GameManager;
 import net.h2020.core.command.AdminCommand;
 import net.h2020.core.command.LobbyCommand;
 import net.h2020.core.command.PlayCommand;
+import net.h2020.core.command.RankCommand;
 import net.h2020.core.gui.MenuListener;
 import net.h2020.core.lobby.LobbyBots;
 import net.h2020.core.lobby.LobbyManager;
 import net.h2020.core.lobby.npc.NpcManager;
 import net.h2020.core.packet.PacketInjector;
+import net.h2020.core.packet.WorldTabList;
 import net.h2020.core.profile.ChatListener;
 import net.h2020.core.profile.ProfileServiceImpl;
 import net.h2020.core.profile.StatsListener;
@@ -31,6 +33,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class CoreModule implements Module {
     private Core core;
     private PacketInjector injector;
+    private WorldTabList tabList;
     private final java.util.List<Listener> listeners = new java.util.ArrayList<>();
 
     @Override public String name() { return "core"; }
@@ -58,7 +61,8 @@ public final class CoreModule implements Module {
         H2020.register(ScoreboardService.class, core.scoreboards);
         H2020.register(GameManager.class, core.games);
 
-        injector = new PacketInjector(plugin.getLogger());
+        tabList = new WorldTabList(plugin);
+        injector = new PacketInjector(plugin.getLogger(), tabList);
         // order matters within a priority: profiles/scoreboards first so the lobby can use them on join
         register(plugin, injector);
         register(plugin, core.profiles);
@@ -69,6 +73,7 @@ public final class CoreModule implements Module {
         register(plugin, new MenuListener());
         register(plugin, core.lobby);
         register(plugin, core.npcs);
+        register(plugin, tabList);
         net.h2020.core.combat.Knockback knockback = new net.h2020.core.combat.Knockback();
         knockback.load(plugin.getConfig().getConfigurationSection("core.knockback"));
         register(plugin, knockback);
@@ -79,10 +84,14 @@ public final class CoreModule implements Module {
         AdminCommand admin = new AdminCommand(core);
         PluginCommand h = plugin.getCommand("h2020");
         if (h != null) { h.setExecutor(admin); h.setTabCompleter(admin); }
+        RankCommand rank = new RankCommand(core);
+        PluginCommand rankCommand = plugin.getCommand("rank");
+        if (rankCommand != null) { rankCommand.setExecutor(rank); rankCommand.setTabCompleter(rank); }
         PluginCommand play = plugin.getCommand("play");
         if (play != null) play.setTabCompleter(new PlayCommand(core));
 
         injector.injectAll();
+        tabList.start();
         core.filler.start();
         // everything below needs the other modules (maps, bots) which enable after core
         Bukkit.getScheduler().runTask(plugin, new Runnable() {
@@ -116,6 +125,7 @@ public final class CoreModule implements Module {
         try { core.npcs.stop(); } catch (Throwable ignored) {}
         core.profiles.saveAll();
         if (injector != null) injector.uninjectAll();
+        if (tabList != null) tabList.shutdown();
         core.scoreboards.shutdown();
         for (Listener l : listeners) HandlerList.unregisterAll(l);
         listeners.clear();

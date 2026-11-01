@@ -233,18 +233,18 @@ public final class LobbyManager implements LobbyHooks, Listener {
     }
 
     public void applyNametag(Player p) {
-        Rank r = core.profiles.rank(p);
-        core.scoreboards.setNametag(p, core.profiles.nametagPrefix(p), "", r.color);
+        ProfileData d = core.profiles.data(p);
+        core.scoreboards.setNametag(p, core.profiles.nametagPrefix(p), "", d.nameColor());
     }
 
     private void joinMessage(Player p, ProfileData d) {
         String msg;
         if (d.rank == Rank.MVP_PLUS_PLUS) {
             msg = " " + ChatColor.AQUA + ">" + ChatColor.RED + ">" + ChatColor.GREEN + ">" + ChatColor.RESET + " "
-                    + d.rank.prefix(d.plusColor) + p.getName() + ChatColor.GOLD + " joined the lobby! "
+                    + d.rankPrefix() + p.getName() + ChatColor.GOLD + " joined the lobby! "
                     + ChatColor.GREEN + "<" + ChatColor.RED + "<" + ChatColor.AQUA + "<";
         } else if (d.rank == Rank.MVP_PLUS) {
-            msg = d.rank.prefix(d.plusColor) + p.getName() + ChatColor.GOLD + " joined the lobby!";
+            msg = d.rankPrefix() + p.getName() + ChatColor.GOLD + " joined the lobby!";
         } else {
             return;
         }

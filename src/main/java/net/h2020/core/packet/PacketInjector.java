@@ -7,6 +7,7 @@ import io.netty.channel.ChannelPromise;
 import net.h2020.api.packet.PacketHub;
 import net.h2020.core.CoreUtil;
 import net.minecraft.server.v1_8_R3.Packet;
+import net.minecraft.server.v1_8_R3.PacketPlayOutPlayerInfo;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -25,8 +26,9 @@ import java.util.logging.Logger;
 public final class PacketInjector implements Listener {
     public static final String HANDLER = "h2020_packets";
     private final Logger log;
+    private final WorldTabList tabList;
 
-    public PacketInjector(Logger log) { this.log = log; }
+    public PacketInjector(Logger log, WorldTabList tabList) { this.log = log; this.tabList = tabList; }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onJoin(PlayerJoinEvent e) { inject(e.getPlayer()); }
@@ -46,7 +48,7 @@ public final class PacketInjector implements Listener {
                 try {
                     if (ch.pipeline().get(HANDLER) != null) ch.pipeline().remove(HANDLER);
                     if (ch.pipeline().get("packet_handler") == null) return;
-                    ch.pipeline().addBefore("packet_handler", HANDLER, new Handler(player));
+                    ch.pipeline().addBefore("packet_handler", HANDLER, new Handler(player, tabList));
                 } catch (Throwable t) {
                     log.warning("Packet injection failed for " + player.getName() + ": " + t);
                 }
@@ -67,8 +69,9 @@ public final class PacketInjector implements Listener {
     /** One per connection; holds the Bukkit Player it belongs to. */
     private static final class Handler extends ChannelDuplexHandler {
         private final Player player;
+        private final WorldTabList tabList;
 
-        Handler(Player player) { this.player = player; }
+        Handler(Player player, WorldTabList tabList) { this.player = player; this.tabList = tabList; }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -83,6 +86,13 @@ public final class PacketInjector implements Listener {
 
         @Override
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+            if (msg instanceof PacketPlayOutPlayerInfo) {
+                msg = tabList.filter(player.getUniqueId(), (PacketPlayOutPlayerInfo) msg);
+                if (msg == null) {
+                    promise.setSuccess();
+                    return;
+                }
+            }
             if (msg instanceof Packet) {
                 try { PacketHub.dispatchOutbound(player, (Packet<?>) msg); } catch (Throwable ignored) {}
             }

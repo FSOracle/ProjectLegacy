@@ -28,7 +28,7 @@ public final class LobbySidebars {
         List<String> l = new ArrayList<>();
         l.add(HypixelFormat.dateLine("lobby" + d.lobbyNumber));
         l.add("");
-        l.add("Rank: " + HypixelFormat.rankName(d.rank, d.plusColor));
+        l.add("Rank: " + d.rankName());
         l.add("Achievement Points: " + ChatColor.YELLOW + HypixelFormat.commas(d.achievementPoints));
         l.add("Guild: " + (d.guild == null ? ChatColor.GRAY + "None" : ChatColor.AQUA + d.guild));
         l.add("");

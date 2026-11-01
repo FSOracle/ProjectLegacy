@@ -97,9 +97,18 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
     @Override
     public void setRank(Player p, Rank rank, ChatColor plusColor) {
         ProfileData d = data(p);
+        d.rankColor = null;
         d.rank = rank == null ? Rank.NONE : rank;
         if (plusColor != null && plusColor.isColor()) d.plusColor = plusColor;
         else if (d.rank == Rank.MVP_PLUS || d.rank == Rank.MVP_PLUS_PLUS) d.plusColor = ChatColor.RED;
+        fireChange(p);
+    }
+
+    public void setRankColor(Player p, Rank rank, ChatColor color) {
+        ProfileData d = data(p);
+        d.rank = rank == null ? Rank.NONE : rank;
+        d.plusColor = ChatColor.RED;
+        d.rankColor = color != null && color.isColor() ? color : null;
         fireChange(p);
     }
 
@@ -116,13 +125,13 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
     @Override
     public String displayName(Player p) {
         ProfileData d = data(p);
-        return d.rank.prefix(d.plusColor) + p.getName();
+        return d.rankPrefix() + p.getName();
     }
 
     /** Name tag prefix (rank prefix, max 16 chars) for lobbies. */
     public String nametagPrefix(Player p) {
         ProfileData d = data(p);
-        String pre = d.rank.prefix(d.plusColor);
+        String pre = d.rankPrefix();
         return pre.length() > 16 ? pre.substring(0, 16) : pre;
     }
 

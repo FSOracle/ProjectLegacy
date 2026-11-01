@@ -17,6 +17,7 @@ public final class ProfileData {
     public volatile String name;
     public volatile Rank rank = Rank.NONE;
     public volatile ChatColor plusColor = ChatColor.RED;
+    public volatile ChatColor rankColor;
     public volatile int networkLevel = 1;
     /** Progress 0..1 towards the next network level (XP bar in lobbies). */
     public volatile double levelProgress = 0;
@@ -33,6 +34,18 @@ public final class ProfileData {
     public volatile boolean playersHidden = false;
 
     public ProfileData(UUID uuid, String name) { this.uuid = uuid; this.name = name; }
+
+    public String rankPrefix() {
+        return rankColor == null ? rank.prefix(plusColor)
+                : rankColor + (rank.tag.isEmpty() ? "" : rank.tag + " ");
+    }
+
+    public String rankName() {
+        return rankColor == null ? HypixelFormat.rankName(rank, plusColor)
+                : rankColor + (rank == Rank.NONE ? "Default" : rank.tag.substring(1, rank.tag.length() - 1));
+    }
+
+    public ChatColor nameColor() { return rankColor == null ? rank.color : rankColor; }
 
     /** Fill stats with plausible values for a given network level (used for new players and bots). */
     public void randomizeStats(long seed) {
@@ -78,6 +91,7 @@ public final class ProfileData {
         s.set("name", name);
         s.set("rank", rank.name());
         s.set("plus-color", plusColor.name());
+        s.set("rank-color", rankColor == null ? null : rankColor.name());
         s.set("level", networkLevel);
         s.set("level-progress", levelProgress);
         s.set("achievement-points", achievementPoints);
@@ -106,6 +120,11 @@ public final class ProfileData {
         name = s.getString("name", name);
         try { rank = Rank.valueOf(s.getString("rank", rank.name())); } catch (IllegalArgumentException ignored) {}
         try { plusColor = ChatColor.valueOf(s.getString("plus-color", plusColor.name())); } catch (IllegalArgumentException ignored) {}
+        rankColor = null;
+        try {
+            ChatColor color = ChatColor.valueOf(s.getString("rank-color", ""));
+            if (color.isColor()) rankColor = color;
+        } catch (IllegalArgumentException ignored) {}
         networkLevel = s.getInt("level", networkLevel);
         levelProgress = s.getDouble("level-progress", levelProgress);
         achievementPoints = s.getInt("achievement-points", achievementPoints);

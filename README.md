@@ -4,6 +4,12 @@
 
 A recreation of Hypixel **SkyWars** and **Bed Wars** as they were in summer 2020, all in one Spigot plugin.
 
+## Fork Changes
+
+This fork adds an admin `/rank` command with Minecraft color parameters and filters the Tab player list by the viewer's current world.
+
+See [2026-11-01 更改说明与用法](docs/changes-2026-11-01.md) for command parameters, rank and color tables, examples, update steps, and acceptance checks.
+
 - **Lightweight.** About 140 MB on disk after building, and about 1.6 GB of RAM and 1.2 CPU cores with around 80 bots online, you are able to host it locally.
 - **20 maps from 2020** for SkyWars and Bed Wars are included. The real Hypixel lobby is not.
 - **Made in about 1–2 hours with Claude.** The anticheat may not be fully accurate, so fix it yourself or somehow source the "accurate" one billionaire is making.
@@ -53,6 +59,7 @@ Use the compass or the NPCs in the lobby to join a game. Settings are in `run/pl
 | `/h2020 fillspeed <x>` | How fast bots fill games (1 = real 2020 queue times) |
 | `/h2020 cheaters <percent>` | Share of bots that cheat; Watchdog catches them |
 | `/h2020 rank <player> <rank> [color]` | Set a rank, e.g. `/h2020 rank YourName MVP_PLUS RED` |
+| `/rank <player> <rank> [color]` | Admin only; assign an existing rank to an online player. Optional color applies to the entire rank and name, e.g. `/rank YourName MVP+ gold` or `/rank YourName VIP &a`. Omit color to restore the rank's default colors; use `NONE` to remove the rank. |
 | `/h2020 date today` | Show today's date on scoreboards instead of a 2020 one |
 | `/bot spawn [name] [cheat]` / `/bot list` | Spawn a bot / see what every bot is doing |
 | `/wd alerts` | Anticheat alerts on or off for you (off by default; everything is logged to `watchdog.log`) |
