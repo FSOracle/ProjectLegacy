@@ -6,7 +6,7 @@ A recreation of Hypixel **SkyWars** and **Bed Wars** as they were in summer 2020
 
 ## Fork Changes
 
-This fork adds an admin `/rank` command with Minecraft color parameters and filters the Tab player list by the viewer's current world.
+This fork adds an admin `/rank` command with Minecraft color and custom title parameters and filters the Tab player list by the viewer's current world.
 
 See [2026-11-01 更改说明与用法](docs/changes-2026-11-01.md) for command parameters, rank and color tables, examples, update steps, and acceptance checks.
 
@@ -59,7 +59,7 @@ Use the compass or the NPCs in the lobby to join a game. Settings are in `run/pl
 | `/h2020 fillspeed <x>` | How fast bots fill games (1 = real 2020 queue times) |
 | `/h2020 cheaters <percent>` | Share of bots that cheat; Watchdog catches them |
 | `/h2020 rank <player> <rank> [color]` | Set a rank, e.g. `/h2020 rank YourName MVP_PLUS RED` |
-| `/rank <player> <rank> [color]` | Admin only; assign an existing rank to an online player. Optional color applies to the entire rank and name, e.g. `/rank YourName MVP+ gold` or `/rank YourName VIP &a`. Omit color to restore the rank's default colors; use `NONE` to remove the rank. |
+| `/rank <player> <rank or title> [color]` | Admin only; assign a built-in rank or custom title, e.g. `/rank YourName Builder gold` or `/rank YourName &aAB&bC`. Names follow the dominant visible title color. Omit color for default colors; use `NONE` to clear the title. See the change guide for length limits. |
 | `/h2020 date today` | Show today's date on scoreboards instead of a 2020 one |
 | `/bot spawn [name] [cheat]` / `/bot list` | Spawn a bot / see what every bot is doing |
 | `/wd alerts` | Anticheat alerts on or off for you (off by default; everything is logged to `watchdog.log`) |

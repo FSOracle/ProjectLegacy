@@ -15,8 +15,8 @@ commands:
     description: Admin/video tools (bots, games, watchdog)
     permission: h2020.admin
   rank:
-    description: Assign an existing rank and optional Minecraft color to an online player
-    usage: /rank <player> <rank> [color]
+    description: Assign an existing rank or custom title and optional Minecraft color to an online player
+    usage: /rank <player> <rank|custom title> [color]
     permission: h2020.admin
   bot:
     description: Bot tools (spawn, cheat profiles, list) - owned by bots module

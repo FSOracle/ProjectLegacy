@@ -7,6 +7,8 @@ import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.Random;
 import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Network profile + the lobby-scoreboard stats Hypixel showed in 2020. Real players are persisted to profiles.yml,
@@ -18,6 +20,7 @@ public final class ProfileData {
     public volatile Rank rank = Rank.NONE;
     public volatile ChatColor plusColor = ChatColor.RED;
     public volatile ChatColor rankColor;
+    public volatile String customRankTitle;
     public volatile int networkLevel = 1;
     /** Progress 0..1 towards the next network level (XP bar in lobbies). */
     public volatile double levelProgress = 0;
@@ -36,16 +39,54 @@ public final class ProfileData {
     public ProfileData(UUID uuid, String name) { this.uuid = uuid; this.name = name; }
 
     public String rankPrefix() {
-        return rankColor == null ? rank.prefix(plusColor)
-                : rankColor + (rank.tag.isEmpty() ? "" : rank.tag + " ");
+        String prefix = titlePrefix();
+        ChatColor color = nameColor();
+        return ChatColor.getLastColors(prefix).equals(color.toString()) ? prefix : prefix + color;
     }
 
     public String rankName() {
+        if (customRankTitle != null) return titlePrefix().trim();
         return rankColor == null ? HypixelFormat.rankName(rank, plusColor)
                 : rankColor + (rank == Rank.NONE ? "Default" : rank.tag.substring(1, rank.tag.length() - 1));
     }
 
-    public ChatColor nameColor() { return rankColor == null ? rank.color : rankColor; }
+    private String titlePrefix() {
+        ChatColor base = rankColor == null ? rank.color : rankColor;
+        if (customRankTitle != null) return base + "[" + customRankTitle + "] ";
+        return rankColor == null ? rank.prefix(plusColor)
+                : base + (rank.tag.isEmpty() ? "" : rank.tag + " ");
+    }
+
+    public ChatColor nameColor() {
+        return dominantColor(titlePrefix(), rankColor == null ? rank.color : rankColor);
+    }
+
+    public static ChatColor dominantColor(String text, ChatColor fallback) {
+        Map<ChatColor, Integer> counts = new LinkedHashMap<>();
+        ChatColor current = fallback;
+        for (int i = 0; i < text.length();) {
+            char ch = text.charAt(i);
+            if (ch == ChatColor.COLOR_CHAR && i + 1 < text.length()) {
+                ChatColor code = ChatColor.getByChar(Character.toLowerCase(text.charAt(i + 1)));
+                if (code != null && code.isColor()) current = code;
+                else if (code == ChatColor.RESET) current = fallback;
+                i += 2;
+                continue;
+            }
+            int point = text.codePointAt(i);
+            if (!Character.isWhitespace(point)) counts.put(current, counts.getOrDefault(current, 0) + 1);
+            i += Character.charCount(point);
+        }
+        ChatColor result = fallback;
+        int largest = 0;
+        for (Map.Entry<ChatColor, Integer> entry : counts.entrySet()) {
+            if (entry.getValue() > largest) {
+                result = entry.getKey();
+                largest = entry.getValue();
+            }
+        }
+        return result;
+    }
 
     /** Fill stats with plausible values for a given network level (used for new players and bots). */
     public void randomizeStats(long seed) {
@@ -92,6 +133,7 @@ public final class ProfileData {
         s.set("rank", rank.name());
         s.set("plus-color", plusColor.name());
         s.set("rank-color", rankColor == null ? null : rankColor.name());
+        s.set("custom-rank-title", customRankTitle);
         s.set("level", networkLevel);
         s.set("level-progress", levelProgress);
         s.set("achievement-points", achievementPoints);
@@ -125,6 +167,8 @@ public final class ProfileData {
             ChatColor color = ChatColor.valueOf(s.getString("rank-color", ""));
             if (color.isColor()) rankColor = color;
         } catch (IllegalArgumentException ignored) {}
+        customRankTitle = s.getString("custom-rank-title", null);
+        if (customRankTitle != null && customRankTitle.trim().isEmpty()) customRankTitle = null;
         networkLevel = s.getInt("level", networkLevel);
         levelProgress = s.getDouble("level-progress", levelProgress);
         achievementPoints = s.getInt("achievement-points", achievementPoints);

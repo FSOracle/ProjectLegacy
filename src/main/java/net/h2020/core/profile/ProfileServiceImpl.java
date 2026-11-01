@@ -97,6 +97,7 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
     @Override
     public void setRank(Player p, Rank rank, ChatColor plusColor) {
         ProfileData d = data(p);
+        d.customRankTitle = null;
         d.rankColor = null;
         d.rank = rank == null ? Rank.NONE : rank;
         if (plusColor != null && plusColor.isColor()) d.plusColor = plusColor;
@@ -106,9 +107,19 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
 
     public void setRankColor(Player p, Rank rank, ChatColor color) {
         ProfileData d = data(p);
+        d.customRankTitle = null;
         d.rank = rank == null ? Rank.NONE : rank;
         d.plusColor = ChatColor.RED;
         d.rankColor = color != null && color.isColor() ? color : null;
+        fireChange(p);
+    }
+
+    public void setCustomRank(Player p, String title, ChatColor color) {
+        ProfileData d = data(p);
+        d.rank = Rank.NONE;
+        d.plusColor = ChatColor.RED;
+        d.rankColor = color != null && color.isColor() ? color : null;
+        d.customRankTitle = title;
         fireChange(p);
     }
 
