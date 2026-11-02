@@ -1,5 +1,5 @@
 name: Hypixel2020
-version: 1.1.0-merged
+version: 1.1.1-rankfix
 main: net.h2020.H2020Plugin
 author: h2020
 description: Private Hypixel 2020 recreation (Bed Wars, SkyWars, Watchdog, human-like bots)

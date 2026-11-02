@@ -54,6 +54,12 @@ public final class ProfileData {
         return (title == null ? "" : titleDisplay() + " ") + rankPrefix();
     }
 
+    public boolean hasRank() { return customRankTitle != null || rank != Rank.NONE; }
+
+    public String nametagPrefix() {
+        return NameFormatting.teamPrefix(title == null ? "" : titleDisplay() + " ", rankPrefix(), nameColor());
+    }
+
     public String rankName() {
         if (customRankTitle != null) return titlePrefix().trim();
         return rankColor == null ? HypixelFormat.rankName(rank, plusColor)

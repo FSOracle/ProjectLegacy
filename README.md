@@ -2,7 +2,9 @@
 
 A recreation of Hypixel **SkyWars**, **Bed Wars**, **Duels**, and **The Pit**, with bots, friends, parties, and Watchdog/NCP in one Spigot plugin.
 
-This repository now includes the supplied complete sources merged with the rank, title, and world-filtered Tab changes. Plugin version: **1.1.0-merged**.
+This repository now includes the supplied complete sources merged with the rank, title, and world-filtered Tab changes. Plugin version: **1.1.1-rankfix**.
+
+The rank display fix covers game join/result messages and keeps closing rank brackets when shortening lobby name tags. See [称号显示修复](docs/rank-display-fix.md).
 
 See [完整源码合并与构建说明](docs/merged-source-build.md) for build dependencies, retained modules, tests, deployment steps, and platform limits.
 

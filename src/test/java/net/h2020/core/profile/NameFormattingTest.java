@@ -170,4 +170,65 @@ public class NameFormattingTest {
         assertNull(copy.title);
         assertNull(copy.titleColor);
     }
+
+    @Test public void longRankRetainsClosingBracketAndNameColor() {
+        ProfileData data = profile();
+        data.customRankTitle = rank("&c[&bVeryLongRankName&6]", ChatColor.GRAY);
+        String compact = data.nametagPrefix();
+        String plain = ChatColor.stripColor(compact);
+        assertTrue(compact.length() <= 16);
+        assertTrue(plain, plain.startsWith("["));
+        assertTrue(plain, plain.endsWith("] "));
+        assertTrue(compact, compact.contains(ChatColor.GOLD + "]"));
+        assertEquals(ChatColor.AQUA.toString(), ChatColor.getLastColors(compact));
+        assertEquals(compact, NameFormatting.teamPrefix(compact, data.nameColor()));
+        assertEquals("[VeryLongRankName] ", ChatColor.stripColor(data.rankPrefix()));
+    }
+
+    @Test public void longTitleGivesRankSpaceRatherThanRemovingItsBracket() {
+        ProfileData data = profile();
+        data.customRankTitle = rank("&bVIP", ChatColor.GRAY);
+        data.title = ChatColor.GOLD + "An extremely long title";
+        String compact = data.nametagPrefix();
+        assertTrue(compact.length() <= 16);
+        assertTrue(ChatColor.stripColor(compact).contains("[VIP]"));
+        assertTrue(ChatColor.stripColor(compact).endsWith("[VIP] "));
+        assertEquals(ChatColor.AQUA.toString(), ChatColor.getLastColors(compact));
+        assertEquals("An extremely long title [VIP] ", ChatColor.stripColor(data.displayPrefix()));
+    }
+
+    @Test public void allLongColoredRanksHaveBalancedBracketsAfterCompaction() {
+        ProfileData data = profile();
+        ChatColor[] colors = {ChatColor.AQUA, ChatColor.RED, ChatColor.GRAY, ChatColor.GOLD};
+        for (ChatColor left : colors) for (ChatColor body : colors) for (ChatColor right : colors) {
+            for (int length = 1; length <= 30; length++) {
+                StringBuilder value = new StringBuilder();
+                for (int i = 0; i < length; i++) value.append((i % 3 == 0) ? "\uD83D\uDE00" : "A");
+                data.customRankTitle = NameFormatting.bracketedRank(left + "[" + body + value + right + "]", ChatColor.GRAY);
+                data.title = ChatColor.GREEN + "Long title";
+                String compact = data.nametagPrefix();
+                String plain = ChatColor.stripColor(compact);
+                assertTrue(compact, compact.length() <= 16);
+                assertTrue(plain, plain.contains("[") && plain.endsWith("] "));
+                assertEquals(data.nameColor().toString(), ChatColor.getLastColors(compact));
+                assertEquals(compact, NameFormatting.teamPrefix(compact, data.nameColor()));
+                for (int i = 0; i < compact.length(); i++) {
+                    if (Character.isHighSurrogate(compact.charAt(i))) {
+                        assertTrue(i + 1 < compact.length() && Character.isLowSurrogate(compact.charAt(++i)));
+                    } else assertFalse(Character.isLowSurrogate(compact.charAt(i)));
+                }
+            }
+        }
+    }
+
+    @Test public void customRankHasVisibleRankWithoutChangingBuiltinAuthority() {
+        ProfileData data = profile();
+        data.customRankTitle = rank("&bBuilder", ChatColor.GRAY);
+        assertEquals(Rank.NONE, data.rank);
+        assertTrue(data.hasRank());
+        data.customRankTitle = null;
+        assertFalse(data.hasRank());
+        data.rank = Rank.VIP;
+        assertTrue(data.hasRank());
+    }
 }

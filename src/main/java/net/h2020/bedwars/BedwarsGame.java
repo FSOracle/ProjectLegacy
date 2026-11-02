@@ -2,8 +2,7 @@ package net.h2020.bedwars;
 
 import net.h2020.api.H2020;
 import net.h2020.api.bot.BotService;
-import net.h2020.api.core.ProfileService;
-import net.h2020.api.core.Rank;
+import net.h2020.api.core.PlayerNames;
 import net.h2020.api.core.ScoreboardService;
 import net.h2020.api.game.BedwarsShopItem;
 import net.h2020.api.game.BedwarsView;
@@ -384,28 +383,15 @@ public final class BedwarsGame implements BedwarsView {
     }
 
     static String rankName(Player p) {
-        ProfileService ps = H2020.find(ProfileService.class);
-        if (ps != null) {
-            try { return ps.displayName(p); } catch (Throwable ignored) { }
-        }
-        return ChatColor.GRAY + p.getName();
+        return PlayerNames.display(p);
     }
 
     static ChatColor rankColor(Player p) {
-        ProfileService ps = H2020.find(ProfileService.class);
-        if (ps != null) {
-            try {
-                Rank r = ps.rank(p);
-                if (r != null) return r.color;
-            } catch (Throwable ignored) { }
-        }
-        return ChatColor.GRAY;
+        return PlayerNames.color(p);
     }
 
     static boolean hasRank(Player p) {
-        ProfileService ps = H2020.find(ProfileService.class);
-        if (ps == null) return false;
-        try { Rank r = ps.rank(p); return r != null && r != Rank.NONE; } catch (Throwable t) { return false; }
+        return PlayerNames.hasRank(p);
     }
 
     static boolean isBot(Player p) {
@@ -462,7 +448,7 @@ public final class BedwarsGame implements BedwarsView {
             o.player.showPlayer(p);
             p.showPlayer(o.player);
         }
-        broadcast(rankColor(p) + p.getName() + ChatColor.YELLOW + " has joined (" + ChatColor.AQUA + players.size()
+        broadcast(rankName(p) + ChatColor.YELLOW + " has joined (" + ChatColor.AQUA + players.size()
                 + ChatColor.YELLOW + "/" + ChatColor.AQUA + type.maxPlayers() + ChatColor.YELLOW + ")!");
         updateWaitingBoards();
         return true;
@@ -484,7 +470,7 @@ public final class BedwarsGame implements BedwarsView {
         if (bp == null) return;
         if (state == GameState.WAITING || state == GameState.STARTING) {
             players.remove(p.getUniqueId());
-            if (!silent) broadcast(rankColor(p) + p.getName() + ChatColor.YELLOW + " has quit!");
+            if (!silent) broadcast(rankName(p) + ChatColor.YELLOW + " has quit!");
         } else if (state == GameState.PLAYING) {
             boolean wasIn = bp.team != null && !bp.eliminated;
             players.remove(p.getUniqueId());

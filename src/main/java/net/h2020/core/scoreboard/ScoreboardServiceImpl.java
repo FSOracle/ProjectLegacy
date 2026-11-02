@@ -2,6 +2,7 @@ package net.h2020.core.scoreboard;
 
 import net.h2020.api.core.ScoreboardService;
 import net.h2020.core.CoreUtil;
+import net.h2020.core.profile.NameFormatting;
 import net.minecraft.server.v1_8_R3.PacketPlayOutPlayerListHeaderFooter;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -128,11 +129,7 @@ public final class ScoreboardServiceImpl implements ScoreboardService, Listener 
         if (prefix == null) prefix = "";
         if (suffix == null) suffix = "";
         if (nameColor != null) {
-            String c = nameColor.toString();
-            if (!prefix.endsWith(c) && !ChatColor.getLastColors(prefix).equals(c)) {
-                if (prefix.length() + 2 > 16) prefix = prefix.substring(0, 14);
-                prefix = prefix + c;
-            }
+            prefix = NameFormatting.teamPrefix(prefix, nameColor);
         }
         if (prefix.length() > 16) prefix = prefix.substring(0, 16);
         if (suffix.length() > 16) suffix = suffix.substring(0, 16);

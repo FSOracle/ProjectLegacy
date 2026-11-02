@@ -46,7 +46,7 @@ public class MergedModulesTest {
                 "chat", "play", "lobby", "nocheatplus", "h2020", "rank", "title"}) {
             assertTrue(command, yaml.isConfigurationSection("commands." + command));
         }
-        assertEquals("1.1.0-merged", yaml.getString("version"));
+        assertEquals("1.1.1-rankfix", yaml.getString("version"));
         assertEquals("h2020.admin", yaml.getString("commands.title.permission"));
     }
 

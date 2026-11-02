@@ -40,7 +40,7 @@ public final class ChatListener implements Listener {
         if (family == GameFamily.BEDWARS) level = HypixelFormat.bedwarsStar(d.bwStar) + " ";
         else if (family == GameFamily.SKYWARS) level = HypixelFormat.skywarsLevelColor(d.swLevel) + "[" + d.swLevel + "⋆] ";
         String head = d.displayPrefix() + p.getName()
-                + (d.rank == Rank.NONE && d.customRankTitle == null ? ChatColor.GRAY : ChatColor.WHITE) + ": ";
+                + (d.hasRank() ? ChatColor.WHITE : ChatColor.GRAY) + ": ";
         e.setFormat((level + head).replace("%", "%%") + "%2$s");
         e.setMessage(ChatColor.stripColor(e.getMessage()));
         Iterator<Player> it = e.getRecipients().iterator();

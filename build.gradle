@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'net.h2020'
-version = '1.1.0-merged'
+version = '1.1.1-rankfix'
 
 repositories {
     mavenCentral()
@@ -67,7 +67,8 @@ def contractChecks = [
         friendPurgeContractTest: 'net.h2020.friend.FriendPurgeTest',
         pitContractTest: 'net.h2020.pit.PitContractTest',
         expandedPitLayoutTest: 'net.h2020.pit.ExpandedPitLayoutTest',
-        duelsUnitTest: 'net.h2020.duels.DuelsUnitTest'
+        duelsUnitTest: 'net.h2020.duels.DuelsUnitTest',
+        gameNameContractTest: 'net.h2020.core.profile.GameNameContractTest'
 ]
 contractChecks.each { taskName, entryPoint ->
     tasks.register(taskName, JavaExec) {
@@ -103,6 +104,7 @@ tasks.register('verifyPluginJar') {
                 'net/h2020/core/command/TitleCommand.class',
                 'net/h2020/core/profile/NameFormatting.class',
                 'net/h2020/core/packet/WorldTabList.class',
+                'net/h2020/api/core/PlayerNames.class',
                 'fr/neatmonster/nocheatplus/policy/AutomaticActionPolicy.class',
                 'plugin.yml', 'config.yml', 'LICENSE.txt', 'BuildParameters.properties'
         ]

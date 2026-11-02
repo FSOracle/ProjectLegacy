@@ -91,6 +91,8 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
     }
 
     @Override public Rank rank(Player p) { return data(p).rank; }
+    @Override public ChatColor nameColor(Player p) { return data(p).nameColor(); }
+    @Override public boolean hasRank(Player p) { return data(p).hasRank(); }
 
     @Override public ChatColor plusColor(Player p) { return data(p).plusColor; }
 
@@ -146,10 +148,21 @@ public final class ProfileServiceImpl implements ProfileService, Listener {
         return d.displayPrefix() + p.getName();
     }
 
+    @Override
+    public String displayName(UUID uuid, String fallback) {
+        ProfileData d = profiles.get(uuid);
+        if (d == null) {
+            d = new ProfileData(uuid, fallback);
+            ConfigurationSection stored = yml.getConfigurationSection(uuid.toString());
+            if (stored != null) d.load(stored);
+        }
+        return d.displayPrefix() + (d.name == null ? fallback : d.name);
+    }
+
     /** Name tag prefix (rank prefix, max 16 chars) for lobbies. */
     public String nametagPrefix(Player p) {
         ProfileData d = data(p);
-        return NameFormatting.teamPrefix(d.displayPrefix(), d.nameColor());
+        return d.nametagPrefix();
     }
 
     private void fireChange(final Player p) {

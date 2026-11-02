@@ -1,6 +1,7 @@
 package net.h2020.duels;
 
 import net.h2020.api.H2020;
+import net.h2020.api.core.PlayerNames;
 import net.h2020.api.bot.Bot;
 import net.h2020.api.bot.BotService;
 import net.h2020.api.game.Game;
@@ -138,7 +139,7 @@ final class DuelGame implements Game, HumanPriorityGame {
         players.add(p);
         if (bot) reservedBot = null;
         else if (humans() == 1) waitingSince = System.currentTimeMillis();
-        broadcast(ChatColor.GRAY + p.getName() + ChatColor.YELLOW + " has joined (" + ChatColor.AQUA + players.size() + ChatColor.YELLOW + "/" + ChatColor.AQUA + "2" + ChatColor.YELLOW + ")!");
+        broadcast(PlayerNames.display(p) + ChatColor.YELLOW + " has joined (" + ChatColor.AQUA + players.size() + ChatColor.YELLOW + "/" + ChatColor.AQUA + "2" + ChatColor.YELLOW + ")!");
         if (!bot) p.sendMessage(ChatColor.YELLOW + type.displayName + " on " + ChatColor.GREEN + arena.name + ChatColor.YELLOW + ". Waiting for an opponent...");
         if (!bot && !module.prefs().available()) p.sendMessage(ChatColor.RED + module.prefs().unavailableReason());
         module.log("DUELS_JOIN game=" + id + " mode=" + type.id() + " player=" + p.getName() + " bot=" + bot + " side=" + side);
@@ -222,7 +223,7 @@ final class DuelGame implements Game, HumanPriorityGame {
         module.log("DUELS_RESULT game=" + id + " mode=" + type.id() + " winner=" + (winner == null ? "none" : winner.getName())
                 + " winnerBot=" + (winner != null && CoreUtil.isBot(winner)) + " loser=" + (loser == null ? "none" : loser.getName())
                 + " reason=" + reason + detail);
-        String line = winner == null ? ChatColor.RED + "The match was cancelled." : ChatColor.GOLD + "" + ChatColor.BOLD + winner.getName() + ChatColor.YELLOW + " WON the " + type.displayName + "! " + ChatColor.GRAY + "(" + reason + ")";
+        String line = winner == null ? ChatColor.RED + "The match was cancelled." : PlayerNames.display(winner) + ChatColor.YELLOW + " WON the " + type.displayName + "! " + ChatColor.GRAY + "(" + reason + ")";
         broadcast(ChatColor.GREEN + "" + ChatColor.BOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         broadcast(line + ChatColor.GRAY + detail);
         broadcast(ChatColor.GREEN + "" + ChatColor.BOLD + "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");

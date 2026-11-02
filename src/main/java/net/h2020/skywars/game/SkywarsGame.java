@@ -2,8 +2,7 @@ package net.h2020.skywars.game;
 
 import net.h2020.api.H2020;
 import net.h2020.api.bot.BotService;
-import net.h2020.api.core.ProfileService;
-import net.h2020.api.core.Rank;
+import net.h2020.api.core.PlayerNames;
 import net.h2020.api.core.ScoreboardService;
 import net.h2020.api.game.GameFamily;
 import net.h2020.api.game.GameManager;
@@ -530,7 +529,7 @@ public final class SkywarsGame implements SkywarsView {
     public String coloredName(Player p) {
         SkywarsTeam t = teamOf.get(p.getUniqueId());
         if (type.teamSize > 1 && t != null) return t.color.chat + p.getName();
-        return rankName(p);
+        return PlayerNames.color(p) + p.getName();
     }
 
     private String coloredName(UUID u) {
@@ -541,20 +540,12 @@ public final class SkywarsGame implements SkywarsView {
     }
 
     private static String rankName(Player p) {
-        ProfileService ps = H2020.find(ProfileService.class);
-        if (ps == null) return ChatColor.GRAY + p.getName();
-        Rank r = ps.rank(p);
-        return (r == null ? ChatColor.GRAY : r.color) + p.getName();
+        return PlayerNames.display(p);
     }
 
     private static String fullName(UUID u, String fallback) {
         Player p = Bukkit.getPlayer(u);
-        ProfileService ps = H2020.find(ProfileService.class);
-        if (p != null && ps != null) {
-            String d = ps.displayName(p);
-            if (d != null) return d;
-        }
-        return ChatColor.GRAY + (p != null ? p.getName() : fallback);
+        return p != null ? PlayerNames.display(p) : PlayerNames.display(u, fallback);
     }
 
     // =========================================================================================================
@@ -955,7 +946,7 @@ public final class SkywarsGame implements SkywarsView {
         int shown = 0;
         for (Map.Entry<UUID, Integer> e : top) {
             if (shown >= 3 || e.getValue() <= 0) break;
-            block.add(Chat.center(labels[shown] + ChatColor.GRAY + " - " + coloredName(e.getKey()) + ChatColor.GRAY + " - " + e.getValue()));
+            block.add(Chat.center(labels[shown] + ChatColor.GRAY + " - " + fullName(e.getKey(), names.get(e.getKey())) + ChatColor.GRAY + " - " + e.getValue()));
             shown++;
         }
         if (shown > 0) block.add("");
@@ -964,7 +955,7 @@ public final class SkywarsGame implements SkywarsView {
         String winName;
         if (won == null || won.members.isEmpty()) winName = ChatColor.GRAY + "Nobody";
         else if (type.teamSize > 1) winName = won.color.chat + won.color.displayName + " Team";
-        else winName = coloredName(won.members.get(0));
+        else winName = fullName(won.members.get(0), names.get(won.members.get(0)));
         for (Player p : players()) {
             for (String l : block) p.sendMessage(l);
             boolean isWinner = won != null && won.members.contains(p.getUniqueId());
